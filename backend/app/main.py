@@ -711,16 +711,16 @@ def create_app():
     # backend/app/minhas_atividades.py) é Responsável Techne ou cliente.
     @app.get("/api/minhas-atividades")
     def minhas_atividades_grade():
-        projeto_id = request.args.get("projeto_id")
-        if not projeto_id:
-            return jsonify({"erro": "Informe projeto_id."}), 400
+        # 16ª rodada: não recebe mais projeto_id — a grade sempre traz as
+        # atividades de TODOS os projetos em que o usuário está delegado
+        # (ver docstring de minhas_atividades.montar_grade).
         usuario = auth.buscar_usuario_publico(session["usuario_id"])
         semana_str = request.args.get("semana")
         try:
             data_ref = date.fromisoformat(semana_str) if semana_str else date.today()
         except ValueError:
             return jsonify({"erro": "Data de referência da semana inválida."}), 400
-        return jsonify(minhas_atividades.montar_grade(usuario, projeto_id, data_ref))
+        return jsonify(minhas_atividades.montar_grade(usuario, data_ref))
 
     @app.put("/api/minhas-atividades/dia/<id>")
     def minhas_atividades_ajustar(id):

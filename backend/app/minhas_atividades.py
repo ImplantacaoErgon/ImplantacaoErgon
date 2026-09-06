@@ -10,6 +10,14 @@ case-insensitive) — ver `recursos_do_usuario()`. Um usuário cujo e-mail não
 bate com nenhum Responsável cadastrado simplesmente não tem nada pra ver
 aqui (a rota devolve `vinculado: False`, e o front-end explica o que fazer).
 
+Desde a 16ª rodada, a grade traz atividades de TODOS os projetos em que o
+profissional está delegado, não só do projeto selecionado no cabeçalho —
+"Minhas atividades" é o apontamento pessoal de horas do consultor na
+empresa, e `recursos` sempre foi uma tabela global (sem `projeto_id`), então
+não faz sentido restringir a um projeto só quando a mesma pessoa pode
+atender vários clientes ao mesmo tempo, inclusive na mesma semana. Ver
+`montar_grade()`.
+
 Para cada atividade, a grade mostra os dias úteis da semana escolhida (por
 padrão, a semana atual) com a hora prevista de cada dia. Essa quebra diária
 é gerada automaticamente, uma única vez por atividade (`garantir_dias()`),
@@ -126,10 +134,21 @@ def garantir_dias(atividade, non_working):
     db.execute(sql)
 
 
-def montar_grade(usuario, projeto_id, data_ref: date):
+def montar_grade(usuario, data_ref: date):
     """Monta a resposta completa de GET /api/minhas-atividades: a semana
     (seg-sex) ao redor de data_ref, e cada atividade delegada ao(s)
-    profissional(is) vinculado(s) ao usuário logado, com os 5 dias da grade."""
+    profissional(is) vinculado(s) ao usuário logado, com os 5 dias da grade.
+
+    16ª rodada: deixou de receber `projeto_id` e de filtrar por ele. "Minhas
+    atividades" é um apontamento pessoal de horas trabalhadas na empresa —
+    o mesmo profissional pode estar delegado em atividades de vários
+    projetos (clientes) ao mesmo tempo, inclusive na mesma semana, já que
+    `recursos` sempre foi uma tabela global (sem `projeto_id`), sem nenhuma
+    trava impedindo isso no banco. Antes disso a tela só olhava para o
+    projeto selecionado no seletor do cabeçalho, escondendo atividades de
+    outros projetos na mesma semana. Cada atividade retornada agora traz
+    `projeto_id`/`projeto_sigla`/`projeto_nome` para o front-end identificar
+    de qual projeto ela é."""
     recursos = recursos_do_usuario(usuario.get("email") if usuario else None)
     dias_semana = semana_de(data_ref)
     inicio, fim = dias_semana[0], dias_semana[-1]
@@ -144,23 +163,31 @@ def montar_grade(usuario, projeto_id, data_ref: date):
     placeholders = ", ".join(db.q(rid) for rid in recurso_ids)
     atividades = db.fetch_all(f"""
         SELECT a.id, a.nome, a.codigo_wbs, a.status, a.prazo_horas, a.dtini_prev, a.dtfim_prev,
+               a.projeto_id, p.sigla AS projeto_sigla, p.nome AS projeto_nome,
                e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
                rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome
         FROM atividades a
+        JOIN projetos p ON p.id = a.projeto_id
         JOIN etapas e ON e.id = a.etapa_id
         JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
         LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
         LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
-        WHERE a.projeto_id = {db.q(projeto_id)}
-          AND (a.responsavel_techne_id IN ({placeholders}) OR a.responsavel_cliente_id IN ({placeholders}))
+        WHERE (a.responsavel_techne_id IN ({placeholders}) OR a.responsavel_cliente_id IN ({placeholders}))
           AND a.dtini_prev IS NOT NULL AND a.dtfim_prev IS NOT NULL AND a.prazo_horas IS NOT NULL
           AND a.dtini_prev <= {db.q(fim.isoformat())} AND a.dtfim_prev >= {db.q(inicio.isoformat())}
-        ORDER BY e.numero, a.codigo_wbs NULLS LAST, a.nome
+        ORDER BY p.sigla NULLS LAST, p.nome, e.numero, a.codigo_wbs NULLS LAST, a.nome
     """)
 
-    non_working = _non_working(projeto_id)
+    # Calendário de feriados/recessos é por projeto (calendario_util) — com
+    # atividades de vários projetos na mesma resposta agora, cada uma usa o
+    # calendário do SEU projeto, não de um só; cache simples por projeto_id
+    # pra não repetir a consulta a cada atividade do mesmo projeto.
+    non_working_por_projeto = {}
     for a in atividades:
-        garantir_dias(a, non_working)
+        pid = a["projeto_id"]
+        if pid not in non_working_por_projeto:
+            non_working_por_projeto[pid] = _non_working(pid)
+        garantir_dias(a, non_working_por_projeto[pid])
 
     por_atividade = {}
     if atividades:
@@ -175,6 +202,7 @@ def montar_grade(usuario, projeto_id, data_ref: date):
     resultado = []
     for a in atividades:
         dtini, dtfim = _parse_data(a["dtini_prev"]), _parse_data(a["dtfim_prev"])
+        non_working = non_working_por_projeto[a["projeto_id"]]
         dias_resp = []
         for d in dias_semana:
             linha = por_atividade.get(a["id"], {}).get(d.isoformat())

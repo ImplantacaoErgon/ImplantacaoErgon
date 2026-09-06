@@ -157,6 +157,19 @@
   table.ma-table td.ma-atividade .sub{color:var(--text-muted);font-size:11.5px;margin-top:2px;}
   table.ma-table td.ma-dia{text-align:center;min-width:96px;}
   table.ma-table td.ma-total{text-align:right;white-space:nowrap;font-family:'IBM Plex Mono';font-weight:600;}
+  /* 16ª rodada: "Minhas atividades" passou a mostrar atividades de vários
+     projetos juntas — a coluna Projeto (com esta etiqueta) e a linha de
+     total da semana deixam claro de onde vem cada linha e o total geral. */
+  table.ma-table td.ma-projeto{min-width:110px;}
+  table.ma-table td.ma-projeto .badge{
+    display:inline-block;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;
+    background:var(--accent-soft, #eef2ff);color:var(--accent, #4f46e5);white-space:nowrap;
+  }
+  table.ma-table tr.ma-total-semana td{
+    border-top:2px solid var(--border);background:var(--surface-alt, #f8f9fb);
+    font-family:'IBM Plex Mono';white-space:nowrap;
+  }
+  table.ma-table tr.ma-total-semana td:first-child{font-family:inherit;white-space:normal;}
   .ma-cell{display:inline-flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border-radius:8px;}
   .ma-cell input[type=number]{
     width:64px;text-align:center;background:var(--surface);border:1px solid var(--border);
@@ -465,7 +478,7 @@
   <!-- ============ MINHAS ATIVIDADES ============ -->
   <section class="view" id="view-minhas-atividades">
     <h2 class="view-title">Minhas atividades</h2>
-    <div class="view-sub">Atividades delegadas a você (como Responsável Techne ou cliente) na semana selecionada — ajuste as horas de cada dia ou apenas confirme a execução.</div>
+    <div class="view-sub">Atividades delegadas a você (como Responsável Techne ou cliente) na semana selecionada, <b>em todos os projetos</b> — ajuste as horas de cada dia ou apenas confirme a execução.</div>
 
     <div class="filters">
       <button class="btn secondary small" id="ma-prev">‹ Semana anterior</button>
@@ -1096,9 +1109,10 @@ async function recarregarDadosDoProjeto(){
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
   fillStaticSelects();
   renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
-  // "Minhas atividades" é carregada sob demanda (mesmo padrão do Caminho Crítico, ver goToView) —
-  // só recarrega aqui se o usuário estiver com essa aba aberta no momento da troca de projeto.
-  if(document.getElementById("view-minhas-atividades").classList.contains("active")) carregarMinhasAtividades();
+  // "Minhas atividades" NÃO depende do projeto ativo desde a 16ª rodada
+  // (mostra todos os projetos em que o usuário está delegado) — por isso,
+  // ao contrário das demais views desta função, não precisa recarregar
+  // aqui quando o usuário troca de projeto no seletor do cabeçalho.
 }
 
 // ---------------- autenticação: tela de login/cadastro/esqueci-senha ----------------
@@ -1339,9 +1353,13 @@ function fillStaticSelects(){
 // autorização, o que confirmar/desconfirmar faz). A semana mostrada fica só
 // em memória (MA_DATA_REF) — reabrir a aba sempre volta pra semana atual.
 async function carregarMinhasAtividades(){
+  // 16ª rodada: não filtra mais por PROJETO.id — a grade sempre traz as
+  // atividades de todos os projetos em que o usuário está delegado (ver
+  // backend/app/minhas_atividades.py). Por isso essa tela não depende mais
+  // de qual projeto está selecionado no cabeçalho.
   const iso = toISO(MA_DATA_REF);
   try{
-    MA_GRADE = await api(`/minhas-atividades?projeto_id=${PROJETO.id}&semana=${iso}`);
+    MA_GRADE = await api(`/minhas-atividades?semana=${iso}`);
   }catch(e){ return; }
   renderMinhasAtividades();
 }
@@ -1370,24 +1388,36 @@ function renderMinhasAtividades(){
   if(!MA_GRADE.vinculado) return;
 
   const nomesDia = ["Seg","Ter","Qua","Qui","Sex"];
-  $("ma-thead-row").innerHTML = `<th>Atividade</th>` +
+  $("ma-thead-row").innerHTML = `<th>Projeto</th><th>Atividade</th>` +
     dias.map((d,i)=>`<th>${nomesDia[i]||""}<br><span style="font-weight:400;text-transform:none;">${fmtDate(d)}</span></th>`).join("") +
     `<th>Total</th>`;
 
   const tbody = $("ma-tbody");
   if(!MA_GRADE.atividades.length){
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="${dias.length+2}">Nenhuma atividade delegada a você com dias previstos nesta semana.</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${dias.length+3}">Nenhuma atividade delegada a você com dias previstos nesta semana.</td></tr>`;
     return;
   }
+  // Soma por dia (e geral) somando TODAS as atividades, de TODOS os projetos —
+  // é o apontamento pessoal do consultor na empresa como um todo, não só de
+  // um projeto (16ª rodada). Usa o realizado quando o dia já foi confirmado,
+  // senão o previsto, mesma regra da célula individual (ver celulaHorasDia).
+  const totalDiaSemana = dias.map(()=>0);
+  let totalGeralSemana = 0;
   tbody.innerHTML = MA_GRADE.atividades.map(a=>{
     let totalPrev=0, totalReal=0;
-    const celulas = a.dias.map(d=>{
+    const celulas = a.dias.map((d,i)=>{
       if(d.horas_previstas!=null) totalPrev += Number(d.horas_previstas);
       if(d.confirmado && d.horas_realizadas!=null) totalReal += Number(d.horas_realizadas);
+      if(d.dentro_periodo && d.id){
+        const v = Number(d.confirmado ? d.horas_realizadas : d.horas_previstas) || 0;
+        totalDiaSemana[i] += v;
+        totalGeralSemana += v;
+      }
       return celulaHorasDia(d);
     }).join("");
     const subtitulo = [a.etapa_nome, a.frente_nome].filter(Boolean).join(" / ");
     return `<tr>
+      <td class="ma-projeto"><span class="badge">${esc(a.projeto_sigla || a.projeto_nome || "—")}</span></td>
       <td class="ma-atividade">
         <div>${esc(a.nome)}</div>
         <div class="sub">${a.codigo_wbs?`<span class="wbs">${esc(a.codigo_wbs)}</span> · `:""}${esc(subtitulo)}</div>
@@ -1395,7 +1425,12 @@ function renderMinhasAtividades(){
       ${celulas}
       <td class="ma-total">${totalPrev.toFixed(1)}h${totalReal?` <span style="color:var(--ok);">/ ${totalReal.toFixed(1)}h</span>`:""}</td>
     </tr>`;
-  }).join("");
+  }).join("") + `
+    <tr class="ma-total-semana">
+      <td colspan="2"><b>Total da semana (todos os projetos)</b></td>
+      ${totalDiaSemana.map(v=>`<td><b>${v.toFixed(1)}h</b></td>`).join("")}
+      <td><b>${totalGeralSemana.toFixed(1)}h</b></td>
+    </tr>`;
 }
 
 function wireMinhasAtividades(){
