@@ -63,6 +63,12 @@
   }
   header.topbar h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-.01em;}
   header.topbar .proj{font-size:12px;color:var(--text-muted);}
+  select.proj-select{
+    background:var(--surface);border:1px solid var(--border);border-radius:7px;
+    padding:5px 8px;font-size:12px;color:var(--text-muted);font-family:inherit;
+    max-width:280px;cursor:pointer;
+  }
+  select.proj-select:hover{color:var(--text);}
   .topbar-marca{display:flex;flex-direction:column;align-items:flex-start;gap:2px;}
   .topbar-marca img{max-height:34px;max-width:150px;object-fit:contain;}
   .topbar-marca .topbar-empresa{font-size:12px;font-weight:600;color:var(--text-muted);}
@@ -252,7 +258,9 @@
   </div>
   <div>
     <h1>Ergon PM</h1>
-    <div class="proj" id="proj-label">Carregando projeto…</div>
+    <select class="proj-select" id="proj-label" title="Trocar de projeto">
+      <option value="">Carregando projeto…</option>
+    </select>
   </div>
   <button class="btn ghost small" id="btn-edit-projeto" style="display:none;margin-left:auto;">⚙ Dados do projeto</button>
   <nav class="tabs" id="tabs">
@@ -926,17 +934,75 @@ async function chamarAuthApi(path, body){
 // ---------------- estado global ----------------
 let USUARIO_LOGADO = null;
 let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
-let PROJETO=null, ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[];
+let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[];
 let editingAtividadeId=null, editingRequisitoId=null;
 const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
 
 function byId(list, id){ return list.find(x=>x.id===id); }
 
 // ---------------- boot ----------------
-function projLabelText(){
-  if(!PROJETO) return "Nenhum projeto cadastrado";
-  const sigla = PROJETO.sigla ? `${PROJETO.sigla} — ` : "";
-  return `${sigla}${PROJETO.nome} — ${PROJETO.cliente}`;
+function projLabelTextFor(p){
+  if(!p) return "Nenhum projeto cadastrado";
+  const sigla = p.sigla ? `${p.sigla} — ` : "";
+  return `${sigla}${p.nome} — ${p.cliente}`;
+}
+function projLabelText(){ return projLabelTextFor(PROJETO); }
+
+// Seletor de projeto no cabeçalho — presente em todas as telas (é o mesmo
+// <header> compartilhado por todas as views). Lista todos os projetos
+// cadastrados (PROJETOS) mais uma opção fixa "+ Novo projeto…" no final.
+function renderSeletorProjeto(){
+  const sel = $("proj-label");
+  if(!PROJETOS.length){
+    sel.innerHTML = `<option value="">Nenhum projeto cadastrado</option>`;
+    return;
+  }
+  const opts = PROJETOS.map(p => `<option value="${p.id}">${esc(projLabelTextFor(p))}</option>`).join("");
+  sel.innerHTML = opts + `<option value="__novo__">+ Novo projeto…</option>`;
+  sel.value = PROJETO ? PROJETO.id : "";
+}
+
+function wireSeletorProjeto(){
+  $("proj-label").addEventListener("change", e=>{
+    const val = e.target.value;
+    if(val === "__novo__"){
+      e.target.value = PROJETO ? PROJETO.id : ""; // não deixa o select "preso" na opção fixa
+      openProjetoModal("novo");
+      return;
+    }
+    trocarProjeto(val);
+  });
+}
+
+// Troca o projeto ativo (selecionado no cabeçalho) e recarrega só os dados
+// que são vinculados a um projeto específico (etapas/frentes/atividades/
+// requisitos/riscos/marcos) — tipos de atividade, responsáveis, usuários e
+// parâmetros do site são catálogos globais, compartilhados entre todos os
+// projetos, então não precisam ser recarregados numa troca.
+async function trocarProjeto(id){
+  if(!id || (PROJETO && id === PROJETO.id)) return;
+  const novo = PROJETOS.find(p=>p.id===id);
+  if(!novo) return;
+  PROJETO = novo;
+  localStorage.setItem("ergonProjetoId", PROJETO.id);
+  renderSeletorProjeto();
+  await recarregarDadosDoProjeto();
+  toast(`Projeto alterado: ${PROJETO.nome}`);
+}
+
+// Recarrega/redesenha tudo que depende do projeto ativo — usado tanto ao
+// trocar de projeto quanto logo após criar um projeto novo (além do
+// primeiro). Fecha modais de atividade/requisito abertos antes de trocar,
+// pra evitar salvar algo editado no projeto anterior como se fosse do novo.
+async function recarregarDadosDoProjeto(){
+  closeAtividadeModal(); closeRequisitoModal();
+  [ETAPAS, FRENTES] = await Promise.all([
+    api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`)
+  ]);
+  fillStaticSelects();
+  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
+  fillStaticSelects();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
 }
 
 // ---------------- autenticação: tela de login/cadastro/esqueci-senha ----------------
@@ -1078,6 +1144,7 @@ async function boot(){
   wireAuthScreen();
   wireTrocarSenha();
   wireProjetoModal();
+  wireSeletorProjeto();
   USUARIO_LOGADO = await verificarSessao();
   if(!USUARIO_LOGADO){ mostrarAuthScreen("login"); return; }
   mostrarApp();
@@ -1085,14 +1152,19 @@ async function boot(){
 }
 
 async function iniciarApp(){
-  const projetos = await api("/projetos");
-  PROJETO = projetos[0];
-  $("proj-label").textContent = projLabelText();
+  PROJETOS = await api("/projetos");
+  // Lembra o último projeto usado neste navegador (chave "ergonProjetoId",
+  // mesmo padrão do tema em "ergonTema") — cai no primeiro projeto cadastrado
+  // se nada estiver salvo ainda, ou se o salvo não existir mais na lista.
+  const idSalvo = localStorage.getItem("ergonProjetoId");
+  PROJETO = (idSalvo && PROJETOS.find(p=>p.id===idSalvo)) || PROJETOS[0] || null;
+  renderSeletorProjeto();
   if(!PROJETO){
     $("tabs").style.display = "none";
-    openProjetoModal(true);
+    openProjetoModal("initial");
     return;
   }
+  localStorage.setItem("ergonProjetoId", PROJETO.id);
   await afterProjetoReady();
 }
 
@@ -1775,7 +1847,10 @@ async function saveRequisito(){
 }
 
 // ================= MODAL PROJETO =================
-let projetoModalInitial = false;
+// projetoModalModo: "initial" (nenhum projeto existe ainda — cadastro forçado,
+// não dá pra fechar sem salvar), "editar" (editando o projeto ativo) ou
+// "novo" (cadastrando mais um projeto, com o app já rodando normalmente).
+let projetoModalModo = "editar";
 
 function wireProjetoModal(){
   const modal = $("overlay-projeto");
@@ -1787,7 +1862,7 @@ function wireProjetoModal(){
   $("proj-close").addEventListener("click", closeProjetoModal);
   $("proj-cancel").addEventListener("click", closeProjetoModal);
   $("proj-save").addEventListener("click", saveProjeto);
-  $("btn-edit-projeto").addEventListener("click", ()=>openProjetoModal(false));
+  $("btn-edit-projeto").addEventListener("click", ()=>openProjetoModal("editar"));
   $("proj-anexo-add").addEventListener("click", async ()=>{
     const file = $("proj-anexo-file").files[0]; if(!file || !PROJETO) return;
     const fd = new FormData(); fd.append("entidade_tipo","projeto"); fd.append("entidade_id", PROJETO.id); fd.append("file", file);
@@ -1796,11 +1871,13 @@ function wireProjetoModal(){
   });
 }
 
-function openProjetoModal(isInitial){
-  projetoModalInitial = isInitial;
-  const p = isInitial ? null : PROJETO;
-  $("proj-modal-title").textContent = isInitial ? "Cadastro do projeto" : "Dados do projeto";
-  $("proj-modal-hint").textContent = isInitial ? "Preencha os dados para começar a usar o Ergon PM." : "";
+function openProjetoModal(modo){
+  projetoModalModo = modo;
+  const isInitial = modo === "initial";
+  const criando = modo !== "editar"; // "initial" ou "novo" — formulário em branco
+  const p = criando ? null : PROJETO;
+  $("proj-modal-title").textContent = isInitial ? "Cadastro do projeto" : (modo==="novo" ? "Novo projeto" : "Dados do projeto");
+  $("proj-modal-hint").textContent = isInitial ? "Preencha os dados para começar a usar o Ergon PM." : (modo==="novo" ? "Preencha os dados do novo projeto." : "");
   $("proj-close").style.visibility = isInitial ? "hidden" : "visible";
   $("proj-cancel").style.visibility = isInitial ? "hidden" : "visible";
   $("proj-tab-anexos").style.opacity = p ? "1" : ".5";
@@ -1828,7 +1905,7 @@ function openProjetoModal(isInitial){
 }
 
 function closeProjetoModal(){
-  if(projetoModalInitial && !PROJETO) return; // não deixa fechar sem ter criado o projeto ainda
+  if(projetoModalModo === "initial" && !PROJETO) return; // não deixa fechar sem ter criado o projeto ainda
   $("overlay-projeto").hidden = true;
 }
 
@@ -1851,23 +1928,41 @@ async function saveProjeto(){
     prazo_total_meses: $("proj-prazo-meses").value ? Number($("proj-prazo-meses").value) : null,
   };
   if(!data.nome || !data.cliente){ toast("Informe ao menos o nome do projeto e a instituição.", true); return; }
+  const criando = projetoModalModo !== "editar";
   try{
-    if(PROJETO){
+    if(!criando){
       PROJETO = await api(`/projetos/${PROJETO.id}`, {method:"PUT", body: JSON.stringify(data)});
-      $("proj-label").textContent = projLabelText();
+      const idx = PROJETOS.findIndex(p=>p.id===PROJETO.id);
+      if(idx>=0) PROJETOS[idx] = PROJETO;
+      renderSeletorProjeto();
       toast("Dados do projeto atualizados.");
       closeProjetoModal();
     } else {
-      PROJETO = await api("/projetos", {method:"POST", body: JSON.stringify(data)});
-      $("proj-label").textContent = projLabelText();
+      const eraInitial = projetoModalModo === "initial";
+      const novo = await api("/projetos", {method:"POST", body: JSON.stringify(data)});
+      PROJETOS.push(novo);
+      PROJETO = novo;
+      localStorage.setItem("ergonProjetoId", PROJETO.id);
+      renderSeletorProjeto();
       toast("Projeto criado.");
       $("proj-tab-anexos").style.opacity = "1";
       $("proj-close").style.visibility = "visible";
       $("proj-cancel").style.visibility = "visible";
       $("proj-modal-title").textContent = "Dados do projeto";
       $("proj-modal-hint").textContent = "Projeto criado — você já pode anexar arquivos ou fechar e começar a usar o sistema.";
+      projetoModalModo = "editar"; // reabrir o modal a partir de agora edita este projeto
       refreshProjetoAnexos();
-      await afterProjetoReady();
+      if(eraInitial){
+        // Primeiro projeto do sistema — a interface inteira ainda não foi
+        // montada (abas, listeners, catálogos globais). Só acontece uma vez.
+        $("tabs").style.display = "flex";
+        await afterProjetoReady();
+      } else {
+        // Mais um projeto, com o app já rodando — só recarrega os dados
+        // vinculados a projeto (o novo projeto começa vazio: sem etapas,
+        // frentes, atividades etc., o que é o esperado).
+        await recarregarDadosDoProjeto();
+      }
     }
   }catch(e){}
 }
