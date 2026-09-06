@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, session
 
-from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades
+from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades, relatorio_atividades
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 FRONTEND_DIR = os.environ.get(
@@ -1314,6 +1314,58 @@ def create_app():
         nome_arquivo = f"relatorio-executivo-{row['gerado_em'][:10] if isinstance(row['gerado_em'], str) else id}.pdf"
         return send_file(
             io.BytesIO(pdf_bytes), mimetype="application/pdf",
+            as_attachment=True, download_name=nome_arquivo,
+        )
+
+    # ------------------------------------ relatório de minhas atividades
+    # Apontamento de horas (previsto x realizado) lançado em "Minhas
+    # atividades", filtrável por consultor e período — gerado na hora
+    # (sem persistir nada, ao contrário do Relatório Executivo (IA)), em
+    # PDF ou planilha Excel. Ver app/relatorio_atividades.py.
+    def _validar_periodo_relatorio_atividades():
+        data_ini, data_fim = request.args.get("data_ini"), request.args.get("data_fim")
+        if not data_ini or not data_fim:
+            return None, None, (jsonify({"erro": "Informe o período (data início e fim, ou mês/ano)."}), 400)
+        if data_fim < data_ini:
+            return None, None, (jsonify({"erro": "A data fim não pode ser anterior à data início."}), 400)
+        return data_ini, data_fim, None
+
+    @app.get("/api/relatorios/minhas-atividades/pdf")
+    def relatorio_atividades_pdf():
+        data_ini, data_fim, erro = _validar_periodo_relatorio_atividades()
+        if erro:
+            return erro
+        recurso_id = request.args.get("recurso_id") or None
+        try:
+            dados = relatorio_atividades.coletar_dados(recurso_id, data_ini, data_fim)
+            pdf_bytes = relatorio_atividades.gerar_pdf_bytes(dados)
+        except Exception as e:
+            print(f"[relatorio_atividades] erro ao gerar PDF: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return jsonify({"erro": f"Falha ao gerar o PDF: {e}"}), 500
+        nome_arquivo = f"relatorio-atividades-{data_ini}-a-{data_fim}.pdf"
+        return send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf",
+                          as_attachment=True, download_name=nome_arquivo)
+
+    @app.get("/api/relatorios/minhas-atividades/planilha")
+    def relatorio_atividades_planilha():
+        data_ini, data_fim, erro = _validar_periodo_relatorio_atividades()
+        if erro:
+            return erro
+        recurso_id = request.args.get("recurso_id") or None
+        try:
+            dados = relatorio_atividades.coletar_dados(recurso_id, data_ini, data_fim)
+            xlsx_bytes = relatorio_atividades.gerar_planilha_bytes(dados)
+        except Exception as e:
+            print(f"[relatorio_atividades] erro ao gerar planilha: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return jsonify({"erro": f"Falha ao gerar a planilha: {e}"}), 500
+        nome_arquivo = f"relatorio-atividades-{data_ini}-a-{data_fim}.xlsx"
+        return send_file(
+            io.BytesIO(xlsx_bytes),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True, download_name=nome_arquivo,
         )
 

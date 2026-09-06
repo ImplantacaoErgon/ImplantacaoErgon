@@ -14,8 +14,10 @@ openpyxl>=3.1
 # internet: a extração é 100% baseada em regras (regex), sem IA em tempo
 # de execução.
 # openpyxl é usado pela importação de cronograma via planilha Excel
-# (app/cronograma_import.py) — leitura de arquivos .xlsx. Arquivos .csv
-# usam o módulo csv da biblioteca padrão, sem dependência extra.
+# (app/cronograma_import.py) — leitura de arquivos .xlsx — e também pela
+# exportação em planilha do Relatório de Minhas Atividades
+# (app/relatorio_atividades.py). Arquivos .csv usam o módulo csv da
+# biblioteca padrão, sem dependência extra.
 anthropic>=0.40
 reportlab>=4.0
 # anthropic: chama a API da Anthropic (Claude) para gerar o texto do
@@ -24,5 +26,6 @@ reportlab>=4.0
 # (api.anthropic.com) a partir do container do backend. Sem essa chave, o
 # botão do relatório continua existindo mas devolve um erro explicando o
 # que falta configurar — o resto do sistema funciona normalmente.
-# reportlab: monta o PDF do Relatório Executivo (app/relatorio_pdf.py) —
-# puro Python, sem dependência de bibliotecas de sistema extras.
+# reportlab: monta o PDF do Relatório Executivo (app/relatorio_pdf.py) e do
+# Relatório de Minhas Atividades (app/relatorio_atividades.py) — puro
+# Python, sem dependência de bibliotecas de sistema extras.

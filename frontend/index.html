@@ -337,7 +337,10 @@
     <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <button class="btn secondary" id="btn-refresh-dashboard">↻ Atualizar</button>
       <span class="muted" id="dash-refresh-status"></span>
-      <button class="btn" id="btn-relatorio-executivo" style="margin-left:auto;" title="Gera um diagnóstico do projeto usando IA a partir dos dados atuais do cronograma">🧠 Gerar Relatório Executivo (IA)</button>
+      <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn secondary" id="btn-relatorio-atividades" title="Relatório de horas apontadas em 'Minhas atividades', filtrável por consultor e período, em PDF ou planilha">🕒 Relatório de Minhas Atividades</button>
+        <button class="btn" id="btn-relatorio-executivo" title="Gera um diagnóstico do projeto usando IA a partir dos dados atuais do cronograma">🧠 Gerar Relatório Executivo (IA)</button>
+      </div>
     </div>
     <div class="kpis" id="dash-kpis"></div>
     <div class="grid-2">
@@ -913,6 +916,38 @@
   </div>
 </div>
 
+<!-- ================= MODAL: RELATÓRIO DE MINHAS ATIVIDADES ================= -->
+<div class="overlay" id="overlay-relatorio-atividades" hidden>
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head"><h2>🕒 Relatório de Minhas Atividades</h2><button class="btn ghost" id="ra-close">✕</button></div>
+    <div class="modal-body single-col">
+      <p class="muted">Apontamento de horas (previsto × realizado) lançado em "Minhas atividades", em
+        <strong>todos os projetos</strong> — filtre por consultor e período e gere em PDF ou planilha.</p>
+      <div class="field full">
+        <label>Consultor</label>
+        <select id="ra-consultor"><option value="">Todos os consultores</option></select>
+      </div>
+      <div class="field full">
+        <label>Mês/Ano (preenche o período automaticamente)</label>
+        <input type="month" id="ra-mes-ano">
+      </div>
+      <div class="muted" style="margin:2px 0 6px;">— ou informe um período personalizado —</div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>Data início</label><input type="date" id="ra-data-ini"></div>
+        <div class="field" style="flex:1;"><label>Data fim</label><input type="date" id="ra-data-fim"></div>
+      </div>
+      <div class="muted" id="ra-erro" style="color:var(--danger);margin-top:6px;"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="muted" style="font-size:11.5px;">"Realizado" só considera dias já confirmados.</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="ra-planilha">⬇ Exportar planilha</button>
+        <button class="btn" id="ra-pdf">⬇ Gerar PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ================= MODAL: PROJETO ================= -->
 <div class="overlay" id="overlay-projeto" hidden>
   <div class="modal">
@@ -1311,7 +1346,7 @@ async function afterProjetoReady(){
   ]);
   aplicarMarcaNoTopo();
   fillStaticSelects();
-  wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
+  wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
   wireConfiguracoes(); wireParametros(); wireMinhasAtividades();
   setupCsvTemplateLink();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
@@ -2690,6 +2725,61 @@ function mostrarRelatorioExecutivo(row){
   $("re-gerar").disabled = false; $("re-gerar").textContent = "Gerar novo relatório";
   $("re-meta").textContent = `Gerado em ${new Date(row.gerado_em).toLocaleString("pt-BR")} · modelo: ${row.modelo_ia}`;
   $("re-texto").innerHTML = markdownSimplesParaHtml(row.conteudo_md);
+}
+
+// ================= RELATÓRIO DE MINHAS ATIVIDADES (apontamento de horas) =================
+// Diferente do Relatório Executivo, é 100% determinístico e gerado na hora
+// (sem IA, sem persistir nada) — os botões só montam a URL com os filtros
+// e abrem em nova aba, deixando o navegador/backend cuidar do download
+// (mesmo padrão de "re-baixar-pdf" acima). Escopo: todos os projetos, como
+// "Minhas atividades" (ver docstring de backend/app/relatorio_atividades.py).
+function wireRelatorioAtividades(){
+  $("btn-relatorio-atividades")?.addEventListener("click", abrirRelatorioAtividadesModal);
+  $("ra-close").addEventListener("click", ()=>{ $("overlay-relatorio-atividades").hidden = true; });
+  $("overlay-relatorio-atividades").addEventListener("click", e=>{ if(e.target.id==="overlay-relatorio-atividades") $("overlay-relatorio-atividades").hidden = true; });
+  // Mês/Ano e período personalizado são alternativas -- preencher um limpa o outro,
+  // pra nunca ficar ambíguo qual vale na hora de gerar.
+  $("ra-mes-ano").addEventListener("change", ()=>{
+    if($("ra-mes-ano").value){ $("ra-data-ini").value = ""; $("ra-data-fim").value = ""; }
+  });
+  ["ra-data-ini","ra-data-fim"].forEach(id=> $(id).addEventListener("change", ()=>{
+    if($("ra-data-ini").value || $("ra-data-fim").value) $("ra-mes-ano").value = "";
+  }));
+  $("ra-pdf").addEventListener("click", ()=> gerarRelatorioAtividades("pdf"));
+  $("ra-planilha").addEventListener("click", ()=> gerarRelatorioAtividades("planilha"));
+}
+
+function abrirRelatorioAtividadesModal(){
+  $("ra-erro").textContent = "";
+  $("ra-consultor").innerHTML = `<option value="">Todos os consultores</option>` +
+    RECURSOS.map(r=>`<option value="${r.id}">${esc(r.nome)} (${esc(r.tipo_vinculo||"—")})</option>`).join("");
+  $("ra-mes-ano").value = "";
+  $("ra-data-ini").value = ""; $("ra-data-fim").value = "";
+  $("overlay-relatorio-atividades").hidden = false;
+}
+
+function periodoRelatorioAtividades(){
+  const mesAno = $("ra-mes-ano").value; // "YYYY-MM"
+  if(mesAno){
+    const [ano, mes] = mesAno.split("-").map(Number);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    return { ini: fmt(new Date(ano, mes-1, 1)), fim: fmt(new Date(ano, mes, 0)) };
+  }
+  const ini = $("ra-data-ini").value, fim = $("ra-data-fim").value;
+  if(!ini || !fim) return null;
+  return { ini, fim };
+}
+
+function gerarRelatorioAtividades(formato){
+  const periodo = periodoRelatorioAtividades();
+  if(!periodo){ $("ra-erro").textContent = "Informe o Mês/Ano ou as datas de início e fim."; return; }
+  if(periodo.fim < periodo.ini){ $("ra-erro").textContent = "A data fim não pode ser anterior à data início."; return; }
+  $("ra-erro").textContent = "";
+  const recursoId = $("ra-consultor").value;
+  const params = new URLSearchParams({ data_ini: periodo.ini, data_fim: periodo.fim });
+  if(recursoId) params.set("recurso_id", recursoId);
+  const rota = formato === "pdf" ? "pdf" : "planilha";
+  window.open(`${API}/relatorios/minhas-atividades/${rota}?${params.toString()}`, "_blank");
 }
 
 // ================= CONFIGURAÇÕES (CRUD genérico: Responsáveis, Etapas, Frentes, Tipos) =================
