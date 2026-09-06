@@ -377,10 +377,19 @@
 
   <!-- ============ CRONOGRAMA ============ -->
   <section class="view" id="view-cronograma">
-    <h2 class="view-title">Cronograma</h2>
-    <div class="view-sub">Atividades planejadas — filtre por período, frente, etapa ou responsável.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div>
+        <h2 class="view-title">Cronograma</h2>
+        <div class="view-sub">Atividades planejadas — filtre por período, frente, etapa ou responsável.</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn secondary small" id="btn-import-cronograma">Importar Cronograma (Excel/CSV)</button>
+        <button class="btn danger small" id="btn-remover-cronograma" title="Apaga todas as atividades e marcos deste projeto">Remover cronograma inteiro</button>
+        <button class="btn small" id="btn-new-atividade">+ Nova atividade</button>
+      </div>
+    </div>
 
-    <div class="filters">
+    <div class="filters" style="margin-top:14px;">
       <div class="quickperiod" id="quickperiod">
         <button data-range="semana">Esta semana</button>
         <button data-range="mes">Este mês</button>
@@ -396,9 +405,6 @@
         <input type="checkbox" id="f-atrasadas"> só atrasadas
       </label>
       <button class="btn secondary small" id="btn-clear-filters">Limpar</button>
-      <button class="btn secondary small" id="btn-import-cronograma" style="margin-left:auto;">Importar Cronograma (Excel/CSV)</button>
-      <button class="btn danger small" id="btn-remover-cronograma" title="Apaga todas as atividades e marcos deste projeto">Remover cronograma inteiro</button>
-      <button class="btn small" id="btn-new-atividade">+ Nova atividade</button>
     </div>
 
     <div class="gantt-wrap"><div id="gantt"></div></div>
