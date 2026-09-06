@@ -520,6 +520,62 @@ COMMENT ON COLUMN parametros_site.logo_arquivo IS
   'diretório usado pelos anexos). NULL enquanto nenhum logo foi enviado.';
 
 -- ============================================================================
+-- 18. HORAS DIÁRIAS DA ATIVIDADE  ("Minhas atividades" — grade semanal do consultor)
+-- ============================================================================
+-- Quebra diária das horas previstas de uma atividade. Alimenta a página
+-- "Minhas atividades": cada usuário logado vê, numa planilha, os dias úteis
+-- da semana corrente cruzados com as atividades em que o profissional
+-- vinculado a ele (ver nota abaixo) aparece como Responsável Techne ou
+-- Responsável cliente, com a hora prevista de cada dia — e pode ajustar o
+-- número ou simplesmente confirmar a execução.
+--
+-- As linhas desta tabela são geradas automaticamente (pelo backend, função
+-- garantir_dias() em backend/app/minhas_atividades.py) na primeira vez que a
+-- grade de uma atividade é aberta: o total de atividades.prazo_horas é
+-- dividido igualmente pelos dias úteis entre dtini_prev e dtfim_prev
+-- (respeitando as exceções cadastradas em calendario_util). A partir daí a
+-- geração NÃO se repete (mesmo que prazo_horas/datas sejam editados depois
+-- por reimportação de cronograma ou edição manual) — a grade diária, uma vez
+-- criada, passa a ser a fonte de verdade e não deve ser sobrescrita por
+-- ajustes já feitos pelo consultor. Isso é uma limitação conhecida: se o
+-- planejamento de uma atividade muda muito depois que a grade já foi gerada,
+-- pode ser necessário um ajuste manual dia a dia (não existe nesta rodada
+-- uma regeneração/redistribuição automática).
+--
+-- O vínculo "usuário logado -> profissional (recursos)" NÃO é uma coluna
+-- nova — é resolvido em tempo de consulta comparando o e-mail de login
+-- (usuarios.email) com o e-mail cadastrado no Responsável (recursos.email),
+-- ambos case-insensitive. Um usuário cujo e-mail de login não bate com
+-- nenhum Responsável cadastrado simplesmente não vê nenhuma atividade nesta
+-- tela (a interface avisa e orienta a cadastrar/corrigir o e-mail em
+-- Configurações > Responsáveis).
+CREATE TABLE atividade_horas_dia (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  atividade_id      uuid NOT NULL REFERENCES atividades(id) ON DELETE CASCADE,
+  data              date NOT NULL,
+  horas_previstas   numeric(5,2) NOT NULL DEFAULT 0,
+  horas_realizadas  numeric(5,2),        -- preenchido quando o consultor confirma (ajustado ou igual ao previsto)
+  confirmado        boolean NOT NULL DEFAULT false,
+  confirmado_em     timestamptz,
+  confirmado_por    uuid REFERENCES usuarios(id),
+  atualizado_em     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (atividade_id, data)
+);
+CREATE INDEX idx_horas_dia_atividade ON atividade_horas_dia(atividade_id, data);
+CREATE INDEX idx_horas_dia_data ON atividade_horas_dia(data);
+CREATE TRIGGER trg_horas_dia_atualizado_em BEFORE UPDATE ON atividade_horas_dia
+  FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
+COMMENT ON TABLE atividade_horas_dia IS
+  'Quebra diária das horas previstas/confirmadas de uma atividade — alimenta '
+  'a página "Minhas atividades" (grade semanal por consultor). Gerada '
+  'automaticamente uma única vez por atividade (ver comentário acima); a '
+  'partir daí é a fonte de verdade daquela atividade, dia a dia.';
+
+-- Acelera o casamento usuário-logado -> profissional por e-mail (ver comentário
+-- acima) — mesmo padrão do índice funcional já usado em usuarios(lower(email)).
+CREATE INDEX idx_recursos_email_lower ON recursos (lower(email)) WHERE email IS NOT NULL;
+
+-- ============================================================================
 -- Views de apoio a relatórios
 -- ============================================================================
 
