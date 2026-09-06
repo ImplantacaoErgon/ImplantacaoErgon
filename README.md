@@ -224,6 +224,68 @@ Aba **Configurações > Parâmetros**, com dois blocos independentes:
   (antes mesmo do CSS principal), pra não piscar no tema errado por uma
   fração de segundo.
 
+## Publicando em produção (Render)
+
+O sistema está preparado para rodar no [Render](https://render.com) como um
+**Web Service com Docker**, usando o Supabase como banco (ver "Usando
+Supabase como banco" acima) — sem precisar de um segundo serviço só para o
+Postgres.
+
+### Por que o build do Docker mudou nesta rodada
+
+O `backend/Dockerfile` sempre existiu, mas ele dependia de dois recursos que
+só o `docker-compose` oferece e que o Render **não** tem: o volume
+`./frontend:/frontend:ro` (que "empresta" a pasta `frontend/` para dentro do
+container) e a porta fixa `8000`. Sem eles, a imagem builda mas o site fica
+sem front-end e o Render não consegue detectar em qual porta o servidor está
+escutando. Por isso:
+
+- O contexto de build passou a ser a **raiz do repositório** (não mais só
+  `backend/`) e o Dockerfile agora copia `frontend/` para dentro da própria
+  imagem (`COPY frontend /frontend`) — funciona com ou sem o volume de
+  desenvolvimento. Os dois `docker-compose*.yml` já foram atualizados para
+  esse novo contexto (`context: .` / `dockerfile: backend/Dockerfile`); se
+  você tiver algum script ou comando próprio rodando
+  `docker build ./backend`, troque para
+  `docker build -f backend/Dockerfile .` (a partir da raiz do projeto).
+- O `CMD` do container agora escuta em `0.0.0.0:${PORT:-8000}` em vez de
+  `8000` fixo — plataformas como o Render escolhem a porta pela variável de
+  ambiente `PORT` (normalmente `10000`); localmente, sem essa variável
+  definida, continua caindo em `8000` como antes.
+
+Nenhuma dessas mudanças afeta quem já usa `docker compose up` localmente —
+o comportamento é o mesmo de antes.
+
+### Criando o serviço no Render
+
+A ferramenta de automação usada para configurar isso só cria serviços Web
+sem Docker — como este sistema depende de Docker (para instalar o
+`postgresql-client` usado por `app/db.py`), a criação inicial do serviço
+precisa ser feita pelo painel do Render:
+
+1. Acesse https://dashboard.render.com/web/new e conecte o repositório do
+   GitHub com o código deste projeto.
+2. **Runtime**: Docker. **Dockerfile Path**: `backend/Dockerfile`. **Docker
+   Build Context Directory**: deixe como a raiz do repositório (padrão).
+3. Em **Environment Variables**, configure (mesmos nomes do `.env`, ver
+   `.env.example`):
+   - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`,
+     `PGSSLMODE=require` — dados de conexão do Supabase (aba "Transaction
+     pooler" do botão **Connect** no painel do Supabase).
+   - `SECRET_KEY` — gere com
+     `python3 -c "import secrets; print(secrets.token_hex(32))"` e nunca
+     reaproveite o valor de desenvolvimento.
+   - `SESSION_COOKIE_SECURE=true` — o Render já serve tudo em HTTPS, então
+     isso deve ficar ligado em produção (ver comentário no `.env.example`).
+   - Opcionais: `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` (Relatório Executivo)
+     e `SMTP_*` (e-mail de "Esqueci a senha") — sem eles, o resto do sistema
+     funciona normalmente, só essas duas funcionalidades ficam indisponíveis.
+4. Antes do primeiro acesso, rode `db/schema.sql` no SQL Editor do Supabase
+   (se ainda não tiver feito isso).
+5. Depois de criado, o serviço passa a poder ser monitorado/configurado
+   também por chat (variáveis de ambiente, redeploys, logs), sem precisar
+   voltar ao painel.
+
 ## Modelo de dados
 
 Ver `db/schema.sql` — cada tabela tem `COMMENT ON TABLE` explicando seu

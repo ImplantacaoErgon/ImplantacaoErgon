@@ -1,0 +1,14 @@
+# Contexto de build agora é a raiz do repositório (ver comentário no topo de
+# backend/Dockerfile) — este arquivo evita que coisas desnecessárias (ou
+# sensíveis) sejam enviadas para o build.
+.git
+.env
+.env.example
+venv/
+__pycache__/
+*.pyc
+backend/uploads/
+screenshots/
+Claude outputs/
+ergon-pm-deliverable.zip
+README.md

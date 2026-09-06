@@ -200,6 +200,13 @@ def create_app():
         SECRET_KEY=SECRET_KEY,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        # Secure = cookie só é enviado em HTTPS. Precisa ficar DESLIGADO em
+        # dev local (docker-compose serve em http://localhost, sem HTTPS —
+        # com Secure=True o navegador simplesmente descartaria o cookie e o
+        # login pareceria não "colar"). Em produção atrás de HTTPS (Render,
+        # ou qualquer proxy com TLS), defina SESSION_COOKIE_SECURE=true nas
+        # variáveis de ambiente do serviço.
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").strip().lower() == "true",
         PERMANENT_SESSION_LIFETIME=timedelta(days=7),
     )
 
