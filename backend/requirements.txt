@@ -1,0 +1,28 @@
+Flask>=3.0
+gunicorn>=21.2
+networkx>=3.2
+python-dotenv>=1.0
+python-docx>=1.1
+pypdf>=3.17
+openpyxl>=3.1
+# Nenhum driver de Postgres em Python: app/db.py fala com o banco via o
+# cliente `psql` (subprocess). Garanta que o pacote de sistema
+# `postgresql-client` esteja instalado (já está no Dockerfile).
+# python-docx e pypdf são usados só pela importação automática de
+# requisitos a partir do documento do TR (app/tr_parser.py) — leitura de
+# .docx e .pdf. Não precisam de nenhuma chave de API nem acesso à
+# internet: a extração é 100% baseada em regras (regex), sem IA em tempo
+# de execução.
+# openpyxl é usado pela importação de cronograma via planilha Excel
+# (app/cronograma_import.py) — leitura de arquivos .xlsx. Arquivos .csv
+# usam o módulo csv da biblioteca padrão, sem dependência extra.
+anthropic>=0.40
+reportlab>=4.0
+# anthropic: chama a API da Anthropic (Claude) para gerar o texto do
+# Relatório Executivo (IA) do Dashboard — app/relatorio_executivo.py. Exige
+# a variável de ambiente ANTHROPIC_API_KEY e acesso de saída à internet
+# (api.anthropic.com) a partir do container do backend. Sem essa chave, o
+# botão do relatório continua existindo mas devolve um erro explicando o
+# que falta configurar — o resto do sistema funciona normalmente.
+# reportlab: monta o PDF do Relatório Executivo (app/relatorio_pdf.py) —
+# puro Python, sem dependência de bibliotecas de sistema extras.

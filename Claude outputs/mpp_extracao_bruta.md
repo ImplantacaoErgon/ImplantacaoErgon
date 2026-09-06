@@ -1,0 +1,1305 @@
+# Extração bruta do arquivo .mpp — implantação PCR
+
+Arquivo enviado: `implantacao PCR  Sem Atividades da Etapa 2  Versao 3.0.mpp`
+
+## Metadados do arquivo (lidos do cabeçalho OLE)
+
+- Título interno: imploantacao PCR - Versao 1.0
+- Autor: Paulo Roberto Garcia Anache
+- Última gravação por: Silvia Maria Mergulhão Soares Brito
+- Nº de revisão: 7
+- Criado em: 17/03/2025
+- Última gravação em: 05/06/2025
+- Aplicação: Microsoft Project
+
+## Método usado e limitações — leia antes de usar esta lista
+
+`.mpp` é um formato binário proprietário da Microsoft (um contêiner OLE com uma
+estrutura interna documentada apenas por engenharia reversa, feita pela
+biblioteca de código aberto **MPXJ**). Neste ambiente eu não tenho acesso à
+internet para baixar essa biblioteca (nem via pip, nem via Maven/Java, nem via
+npm — todos bloqueados pela política de rede desta organização), então não
+consigo abrir o arquivo com um parser de verdade.
+
+O que eu fiz em vez disso: escanei o arquivo binário procurando trechos de
+texto em UTF-16 (o jeito como o Project guarda nomes de tarefas, recursos e
+calendário) e organizei o que encontrei. Isso funciona relativamente bem para
+**nomes** (tarefas, recursos, feriados), mas **não recupera**:
+
+- Datas de início/fim, duração, % concluído
+- Hierarquia real da EAP (WBS) / ordem exata de exibição
+- Dependências entre atividades
+- Alocação de recursos por atividade (quem faz o quê)
+
+Além disso, a extração é uma varredura bruta do arquivo, então pode conter
+**algumas linhas fragmentadas ou duplicadas** (pedaços de um texto que
+aparecem separados de acidente, especialmente em nomes com acento) — dá pra
+perceber isso numa linha muito curta ou que começa em letra minúscula sem
+sentido.
+
+**Se você precisar dos dados completos e confiáveis** (datas, dependências,
+responsáveis por atividade), o caminho mais simples é exportar do próprio MS
+Project: abra o arquivo lá e faça **Arquivo → Salvar como → XML (formato
+MSPDI)** ou **Salvar como → CSV/Excel** da tabela de tarefas. Esses formatos
+são abertos/documentados e eu consigo ler com 100% de fidelidade — é só
+reenviar o arquivo exportado.
+
+## Recursos identificados (~46)
+
+Consultores Techne e pessoas do lado do cliente (PCR / órgãos):
+
+- PCR - Ana Portela
+- PCR - Rodrigo
+- PCR - Roberto
+- Pimentel
+- Horacio
+- PCR TI
+- Anderson Almeida
+- PCR TI, PCR Usuários, Consultor
+- Techne - Pimentel
+- Techne
+- Techne - Horacio
+- PCR - Paulo
+- Techne - Anderson Almeida
+- Techne - Paulo Anache
+- Techne - Marco Antonio
+- Techne - Silvio Mendes
+- Techne - Paulo Cesar
+- Techne - Natalino
+- Techne - Ivan
+- Techne - Shirley
+- Techne - Silvia Mergulhão
+- PCR - Fernando
+- PCR - Washington
+- Usuário
+- PCR - Isac
+- PCR - Renata
+- PCR - Hugo
+- Techne - FSW
+- Techne - Emerson
+- Techne - Gustavo
+- TECHNE
+- Techne - Anderson Cardoso
+- Techne - Alexandre Tonon
+- PCR - Gestão
+- PCR - Multiplicadores
+- Andrea Mota (SUTIN)
+- Vânia (SUTIN)
+- Gabriele (SUTIN)
+- Olga (Perícias)
+- Dra. Helena (Perícias)
+- Dra. Alice (Perícias)
+- Chrystiane (SUADP)
+- Ana Cristina (FUNAPE)
+- Ana Falcão (SUMOP)
+- Renata (SUMOP)
+- Equipe Gestores (SAD)
+
+## Exceções de calendário identificadas (feriados)
+
+- Carnaval e Data Magna
+- Semana Santa e Tiradentes
+- Dia do Trabalho
+- Corpus Christy
+- São João
+- Independência
+- Padroeira do Brasil
+- Dia da Consciência Negra
+- Final do Ano 2025
+- Corpus Christy e São João
+
+## Lista de tarefas/atividades (extração bruta, ~1188 linhas)
+
+Ordem aproximada de armazenamento interno do arquivo — **não é garantia da
+ordem/hierarquia real de exibição no Project**. Números como "03.01-21." ou
+"3211." são os próprios códigos que já estavam nos nomes das tarefas dentro
+do arquivo.
+
+- 01-1. PLANEJAMENTO
+- 02.01-21. Infraestrutura PCR Banco e Aplicações - F1
+- 211. Dimensionamento de Infra
+- 212. Autorizações e Termos de Acesso a VPN
+- 213. Instal e Homologação Amb HML
+- 214. Instal e Homologação Amb TST
+- 215. Instal e Homologação Amb PRD
+- 02.02-22. Plano de Projeto PCR - F1
+- 221. Plano de Gestão de Integração
+- 222. Plano de Gestão de Escopo
+- 223. Plano de Gestão de Tempo
+- 224. Plano de Gestão de Comunicação
+- 225. Plano de Gestão de Riscos
+- 226. Plano de Gestão da Qualidade
+- 227. Plano de Gestão de Custos
+- 228. Plano de Gestão de Aquisições
+- 229. Plano de Gestão dos Recursos Humanos
+- 230. Plano de Gestão das Partes Interessadas
+- 05-5. ENCERRAMENTO
+- Lições Aprendidas
+- Termo de Encerramento
+- 02-1. INICIAÇÃO
+- 1.1. Reunião Inicial - Assinatura de Contrato
+- 1.2. Onboarding de Projeto e Pesquisa de Avaliação
+- 1.3. TAP - Termo de Abertura do Projeto
+- 1.4. Reunião de Kick Off e Pesquisa de Avaliação
+- 03-1. EXECUÇÃO - Fase 1
+- 03.01-01. Levantamentos de Processos e Parametrizações -F1
+- 03.01.01-321. Estrutura Organizacional - Paramet.-Workshops e Levantamentos F1
+- 3211. Levantamento de Processos Estrutura Organizacional
+- 3212. Montagem do Caderno de Levantamento de processos
+- 3213. Marco Sessão e Caderno Estrutura Organizacional
+- 03.01.02-322. Registro de Pessoal - Paramet.-Workshops e Levantamentos F1
+- 3221. Levantamento de Processos Registro de Pessoal
+- 3222. Montagem do Caderno de Levantamento de processos
+- 3223. Marco Sessão e Caderno Registro de Pessoal
+- 03.01.03-323. Vinculo Funcional - Paramet.-Workshops e Levantamentos F1
+- 3231. Levantamento de Processos Vinculo Funcional
+- 3232. Montagem do Caderno de Levantamento de processos
+- 3233. Marco Sessão e Caderno Vinculo Funcional
+- 03.01.04-324. Cargos - Paramet.-Workshops e Levantamentos F1
+- 3241. Marco Sessão e Caderno Cargos
+- 3231. Levantamento de Processos Cargos
+- 3243. Montagem do Caderno de Levantamento de processos
+- 03.01.05-325. Eventos de Cargos - Paramet.-Workshops e Levantamentos F1
+- 3251. Levantamento de Processos Eventos de Cargos
+- 3252. Montagem do Caderno de Levantamento de processos
+- 3253. Marco Sessão e Caderno Eventos de Cargos
+- 03.01.06-326. Frequencia e Afastamentos - Paramet.-Workshops e Levantamentos F1
+- 3261. Levantamento de Processos Frequencia e Afastamentos
+- 3262. Montagem do Caderno de Levantamento de processos
+- 3263. Marco Sessão e Caderno Frequencia e Afastamentos
+- 03.01.07-327. Cessões - Paramet.-Workshops e Levantamentos F1 0 0 0 Pendente 1
+- 3271. Levantamento de Processos e Workshop do Sistema
+- 3272. Montagem do Caderno de Levantamento de processos
+- 3273. Marco Sessão e Caderno Cessões
+- 03.01.08-328. Controle de Ocupação de Cargos por Quadro - Paramet.-Workshops e Levantamentos F1
+- 3281. Levantamento de Processos e Workshop do Sistema
+- 3282. Montagem do Caderno de Levantamento de processos
+- 3283. Marco Sessão e Caderno Controle de Ocupação de Cargos por Quadro
+- 03.01.09-329. Controle de Ocupação de Vagas Numeradas - Paramet.-Workshops e Levantamentos F1
+- 3291. Levantamento de Processos e Workshop do Sistema
+- 3293. Marco Sessão e Caderno Controle de Ocupação de Vagas Numeradas
+- 3292. Montagem do Caderno de Levantamento de processos
+- 03.01.10-330. Pensão Previdênciária - Paramet.-Workshops e Levantamentos F1
+- 3301. Levantamento de Processos e Workshop do Sistema
+- 3302. Montagem do Caderno de Levantamento de processos
+- 3303. Marco Sessão e Caderno Pensão Previdenciária
+- 03.01.11-331. Pensão Especial - Paramet.-Workshops e Levantamentos F1
+- 3311. Levantamento de Processos e Workshop do Sistema
+- 3312. Montagem do Caderno de Levantamento de processos
+- 3313. Marco Sessão e Caderno Pensão Especial
+- 03.01.12-332. Pensão Alimentícia - Paramet.-Workshops e Levantamentos F1
+- 3321. Levantamento de Processos e Workshop do Sistema
+- 3322. Montagem do Caderno de Levantamento de processos
+- 3323. Marco Sessão e Caderno Pensão Alimentícia
+- 03.01.13-333. Períodos Aquisitivos e Licença Prêmio - Paramet.-Workshops e Levantamentos F1
+- 3331. Levantamento de Processos e Workshop do Sistema
+- 3332. Montagem do Caderno de Levantamento de processos
+- 3333. Marco Sessão e Caderno Períodos Aquisitivos e Licença Prêmio
+- 03.01.14-334. Aposentadorias - Paramet.-Workshops e Levantamentos F1
+- 3341. Levantamento de Processos e Workshop do Sistema
+- 3342. Montagem do Caderno de Levantamento de processos
+- 3343. Marco Sessão e Caderno Aposentadorias
+- 03.01.15-335. Períodos Aquisitivos e Férias - Paramet.-Workshops e Levantamentos F1
+- 3351. Levantamento de Processos e Workshop do Sistema
+- 3353. Montagem do Caderno de Levantamento de processos
+- 3352. Marco Sessão e Caderno Períodos Aquisitivos de Férias
+- 03.01.17-337. Ingressos - Paramet.-Workshops e Levantamentos F1
+- 3371. Levantamento de Processos e Workshop do Sistema
+- 3372. Montagem do Caderno de Levantamento de processos
+- 3373. Marco Sessão e Caderno de Ingressos
+- 03.01.18-338. Concurso - Paramet.-Workshops e Levantamentos F1
+- 3391. Levantamento de Processos e Workshop do Sistema
+- 3392. Montagem do Caderno de Levantamento de processos
+- 3393. Marco Sessão e Caderno Concurso
+- 03.01.19-339. Contribuições Previdenciárias - Paramet.-Workshops e Levantamentos F1
+- 3403. Marco Sessão e Caderno Contribuições Previdenciárias
+- 3401. Levantamento de Processos e Workshop do Sistema
+- 3402. Montagem do Caderno de Levantamento de processos
+- 03.01.21-341. Perícias Médicas - Paramet.-Workshops e Levantamentos F1
+- 3421. Levantamento de Processos e Workshop do Sistema
+- 3422. Montagem do Caderno de Levantamento de processos
+- 3423. Marco Sessão e Caderno Perícias Médicas
+- 03.01.20-340. Averbações de Tempo - Paramet.-Workshops e Levantamentos F1
+- 3411. Levantamento de Processos e Workshop do Sistema
+- 3412. Montagem do Caderno de Levantamento de processos
+- 3413. Marco Sessão e Caderno Averbações de Tempo
+- 03.01.16-336. Atributos - Paramet. - Workshops e Levantamentos F1
+- 3361. Levantamento de Processos e Workshop do Sistema
+- 3362. Montagem do Caderno de Levantamento de processos
+- 3363. Marco Sessão e Caderno Atributos
+- 03.06-Testes, Provas e Casos de Uso
+- 361. Montagem dos Casos de Uso Modelo (15 por cada lider=45 casos)
+- 365. Revisão dos Casos de Uso
+- 362. Prototipação dos Casos de Uso no Ergon
+- 364. Provas Unitárias
+- 363. Provas Integrais
+- 03.02. Parametrização do Sistema com Base nos Levantamentos
+- 321. Parametrização dos Processos Levantados
+- 324. Apoio , Análise e alinhamento das parametrizações junto ao cliente
+- 322. Testes dos Casos de Uso Prévios
+- 323. Homologação das Parametrizações
+- 03.03. Migração de Dados
+- 03.03.01. Preparação e Prototipação das Migrações
+- 3311. Reunião de Metodologia das Migrações
+- 3312. Montagem do Plano de Migrações e Agendas
+- 3313. Tabelas - Migração - Etapa 1
+- 03.03.02. Ciclos de Migração - F1
+- 3321. Ciclo de Migração 1
+- 3322. Ciclo de Migração 2
+- 3323. Ciclo de Migração 3
+- 3324. Ciclo de Migração 4
+- 3325. Ciclo de Migração 5
+- 3326. Ciclo de Migração 6
+- 3327. Ciclo de Migração 7
+- 3328. Ciclo de Migração 8
+- 3329. Ciclo de Migração 9
+- 3330. Ciclo de Migração 10
+- 3331. Ciclo de Migração 11
+- 03.05-Implantação de Verticais (Xwiki, Jasper, Qliksense, Workflow) - F1
+- 03.05.01-351. Jasper - Gerador de Relatórios - F1
+- Seleção de Relatórios Impeditivos
+- Montagem dos Relatórios no Jasper
+- Testes e Homologações
+- 03.05.02-352. Qliksense - Business Intelligence - F1
+- Criação de Portlets de Projeto
+- Criação de Portlets de Dados Gerais
+- Criação de One Page de Folha
+- Publicação das Portlets e Homologação
+- 03.05.04-354. Xwiki - Gestao do Conhecimento - F1
+- Configuração e Montagem dos Primeiros Documentos
+- Publicação e Liberação para Usuários
+- 03.05.03-353. Workflow - Camunda - F1
+- Seleção de Processos Principais
+- Construção dos Modelos no Camunda
+- Testes
+- 03.04-3.4. Implantação Produtos Techne (Folha, eSocial e Portal)
+- 03.04.01. Folha de Pagamento - Grupos de Folha
+- lha - F1
+- Unificação das Rubricas corporativas
+- Prefeitura
+- Instalação e compilação doKernelda folha
+- da PCR
+- 03.04.01.01-Grupo 01- Salário, Vencimento, Proventos e afins
+- s e afins
+- Grupo 01 - Homologação
+- imento, Subsídio, Proventos e afins - Homologação
+- 03.04.01.02-Grupo 02 - Comissionado e Função Gratificada
+- Grupo 02 - Análise do Levantamento de Regras de Calculo
+- nto das Regras de Cálculo
+- Grupo 02 - Programação
+- e função gratificada - Programação
+- Grupo 02 - Homologação
+- e função gratificada - Homologação
+- 03.04.01.03 - Grupo 03 - Auxílios e Adicionais
+- ificações
+- Grupo 04 - Bônus, Prêmios e Produtividades
+- Grupo 05 - Abonos
+- Grupo 06 - Lotação, Km Rodado e afins
+- Grupo 07 - Auxilio Saúde, Doença
+- Grupo 08 - Condição de trabalho, atividades e jornada
+- Grupo 09 - Outros auxílios e Benefícios
+- Grupo 10 - Tempo de Serviço (quinquênios e anuênios)
+- Grupo 11 - Férias
+- Grupo 12 - Adiantamentos/Férias
+- Grupo 14 - Pensões Alimentícias
+- - Salário Mínimo, Vencimento base, Liquido, Exceções
+- Grupo 15 - Licenças e Afastamentos
+- Grupo 16 - Pensões Previdenciárias e Especiais
+- Grupo 17 - Gratificações incorporadas
+- Grupo 19 - Deduções: faltas, atrasos e suspensões
+- Grupo 20 - Consignações: Bancos e Cooperativas
+- Grupo 21 - Saúde
+- Grupo 22 - Educação
+- Grupo 23 - Previdência (INSS, Privada, Regime Próprio)
+- Grupo 24 - Vale Transporte
+- 03.04.01.25 - Grupo 25 - Rescições
+- Imposto de Renda (incluindo RRA)
+- Grupo 26 - Sindicatos, associações, serviços
+- Grupo 27 - Margem Consignação
+- 03.04.01.27 - Grupo 27 - Parcelamentos Pre-Ergon / Retenções e Parcelamentos
+- mentos
+- Grupo 29 - Estorno de Pagamento / Restos Deixados - Validar com Gestão
+- Grupo 30 - Contabilização do Siafen
+- Grupo 31 - Simulações de Cálculos
+- Grupo 32 - Rotinas da folha (DIRF, E-SOCIAL, etc)
+- Grupo 33 - Outros Tipos de Folha
+- Revisão Geral das verbas programadas
+- 03.06. eSocial
+- Demonstração eSocial Techne
+- Estruturação
+- Teste de Mensageria
+- 03.05. Portal do Gestor e Servidor
+- ervidor
+- 3501. Implantação Portal do Servidor
+- 3502. Implantação Portal do Gestor
+- 3503. Teste de Carga (loading e Performance Testing)
+- 3504. Homologação
+- 03.09. Entrada em Produção
+- 03.09.01. GO LIVE ERGON
+- 3921. Migração Definitiva e Bloqueio Sistema Consist
+- 3922. Atividades Pre Folha
+- 3923.Geração de arquivos, relatórios legais
+- Consist
+- 3924. GO LIVE Folha Definitiva pós Paralelo
+- 03.09.01-391. Preparação Para Go Live
+- 03.09.01.01-Divulgação do Plano de Cut Over
+- Reunião de Avaliação do Sistema para Go Live
+- Reunião de Go No Go
+- 03.07. Treinamentos Transacionais Multiplicadores e Usuarios Finais
+- 371. Planejamento dos Treinamentos
+- 372. Preparação do Ambiente de Treinamento
+- 373. Treinamento de Multiplicadores
+- 374. Treinamento dos Usuários Finais
+- 375. Ajustes e Avaliações
+- 03.08. Simulações e Testes de Carga
+- 381. Montagem dos Cenários das Simulações
+- 382. Executar as Simulações
+- 384. Avaliações e Ajustes
+- 03.10. Operação Assistida
+- 3921. Operação Assistida
+- 3922. Levantamento de Pendências e Ajustes
+- 04-3. EXECUÇÃO Fase 2
+- 04.01-Novos Módulos
+- 04.01.07-Workflow
+- Implantação do Workflow
+- 04.01.02-BI
+- Implantação BI
+- 04.01.01-Banco de Talentos
+- Implementação Banco de Talentos
+- 04.01.03-Educação Corporativa e Avaliação e Certificado
+- Implantação Educação Corporativa
+- 04.01.05-Gestão por desempenho
+- Implantação Gestão por Desempenho
+- 04.01.06-Segurança do Trabalho
+- Implantação do Módulo de Segurança do Trabalho
+- 04.01.04-Gestão de Competências
+- Implantação Gestão por Competência
+- Grupo 01- Análise do Levantamento de Regras de Calculo
+- ins - Levantamento de Regras de Calculo
+- Grupo 01- Testes da Consultoria
+- ubsídio, Proventos e afins - Programação
+- 3313.08. Frequências
+- 3313.09. Licenças e Afastamentos
+- 3313.06. Histórico de Dependentes
+- 3313.07. Dependências
+- 3313.01. Pessoas
+- 3313.05. Dependentes
+- 3313.03. Aposentadorias
+- 3313.12. PA de Licença Prêmio
+- 3313.09. Gozo de Licença Prêmio
+- 3313.15. Requisições
+- 3313.19. Atributos Informações Múltiplas
+- 3313.14. Representantes Legais
+- 3313.14. Regras de Pensão Alimento
+- 3313.15. Pensionistas Previdenciárias/Especial
+- 3313.16. Regras de Pensão Previdenciárias/Especial
+- 3313.10. PA de Férias
+- 3313.11. Gozo de Férias
+- 3313.18. Atributos Informativo
+- 3313.17. Atributos Informação Fixa
+- 3313.11. Atributos
+- Valor Fixo
+- 3313.02. Vínculos (Ativos, Aposentados, Falecidos, Especiais)
+- 3313.12. Substituições
+- 3313.04. Eventos de Cargos
+- 3313.14. Cessões
+- 3313.01.01. Análise dos Sistemas Legados
+- 3313.01.03. Construção dos Arquivos DePara
+- 3313.01.04. Parametrização de Ferramenta ETL
+- 3313.01.05. Elaboração de Rotinas de Conversões e Transformações
+- 3313.01.05. Extração dos dados dos sistemas legados
+- 3313.01.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.01.07. Geração das tabelas formato Ergon
+- 3313.01.08. Carga de Dados no Sistema Ergon
+- 3313.01.09. Geração de Relatório das Rejeições
+- 3313.01.10. Análise e Correções das rejeições
+- 3313.01.02. Especificação de Layout para extração de dados
+- 3313.06. Frequências - Licenças/Afastamentos
+- 3313.05. Dependentes -  Histórico de Dependentes - Dependências
+- 3313.08. Averbações
+- e Licença Prêmio
+- 3313.07. PA e Gozo de Férias
+- 3313.09. Cessões
+- - Requisições
+- 3313.02.01. Análise dos Sistemas Legados
+- 3313.02.02. Especificação de Layout para extração de dados
+- 3313.02.03. Construção dos Arquivos DePara - F1
+- 3313.02.04. Parametrização de Ferramenta ETL
+- 3313.02.05. Elaboração de Rotinas de Conversões e Transformações
+- 3313.02.06. Extração dos dados dos sistemas legados
+- 3313.02.08. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.02.09. Geração das tabelas formato Ergon
+- 3313.02.10. Carga de Dados no Sistema Ergon
+- 3313.02.11. Geração de Relatório das Rejeições
+- 3313.02.12. Análise e Correções das rejeições
+- 3313.03.08. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.03.09. Geração das tabelas formato Ergon
+- 3313.03.10. Carga de Dados no Sistema Ergon
+- 3313.03.11. Geração de Relatório das Rejeições
+- 3313.03.12. Análise e Correções das rejeições
+- 3313.04.01. Análise dos Sistemas Legados
+- 3313.04.02. Especificação de Layout para extração de dados
+- 3313.04.03. Construção dos Arquivos DePara
+- 3313.04.04. Parametrização de Ferramenta ETL
+- 3313.04.05. Elaboração de Rotinas de Conversões e Transformações
+- 3313.04.05. Extração dos dados dos sistemas legados
+- 3313.04.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.04.07. Geração das tabelas formato Ergon
+- 3313.04.08. Carga de Dados no Sistema Ergon
+- 3313.04.09. Geração de Relatório das Rejeições
+- 3313.04.10. Análise e Correções das rejeições
+- 3332. Ciclo de Migração 12
+- 3333. Ciclo de Migração 13
+- 3334. Ciclo de Migração 14
+- 3335. Ciclo de Migração 15
+- 04-3. EXECUÇÃO - Fase 2
+- 3313.15. Pensionistas e Regras de Pensão Previdenciárias/Especial
+- 3313.02.03. Construção dos Arquivos DePara
+- 3313.02.05. Extração dos dados dos sistemas legados
+- 3313.02.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.02.07. Geração das tabelas formato Ergon
+- 3313.02.08. Carga de Dados no Sistema Ergon
+- 3313.02.09. Geração de Relatório das Rejeições
+- 3313.02.10. Análise e Correções das rejeições
+- 3313.05.01. Análise dos Sistemas Legados
+- 3313.05.02. Especificação de Layout para extração de dados
+- 3313.05.03. Construção dos Arquivos DePara
+- 3313.05.04. Parametrização de Ferramenta ETL
+- 3313.05.05. Extração dos dados dos sistemas legados
+- 3313.05.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.05.07. Geração das tabelas formato Ergon
+- 3313.05.08. Carga de Dados no Sistema Ergon
+- 3313.05.09. Geração de Relatório das Rejeições
+- 3313.05.10. Análise e Correções das rejeições
+- 3313.06.01. Análise dos Sistemas Legados
+- 3313.06.02. Especificação de Layout para extração de dados
+- 3313.06.03. Construção dos Arquivos DePara
+- 3313.06.04. Parametrização de Ferramenta ETL
+- 3313.06.05. Extração dos dados dos sistemas legados
+- 3313.06.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.06.07. Geração das tabelas formato Ergon
+- 3313.06.08. Carga de Dados no Sistema Ergon
+- 3313.06.09. Geração de Relatório das Rejeições
+- 3313.06.10. Análise e Correções das rejeições
+- 3313.11.01. Análise dos Sistemas Legados
+- 3313.11.02. Especificação de Layout para extração de dados
+- 3313.11.03. Construção dos Arquivos DePara
+- 3313.11.04. Parametrização de Ferramenta ETL
+- 3313.11.054. Extração dos dados dos sistemas legados - Atributos Informações Múltiplos
+- 3313.11.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.11.07. Geração das tabelas formato Ergon
+- 3313.11.08. Carga de Dados no Sistema Ergon
+- 3313.11.09. Geração de Relatório das Rejeições
+- 3313.11.10. Análise e Correções das rejeições
+- 3313.11.053. Extração dos dados dos sistemas legados - Atributos Informativa
+- 3313.11.052. Extração dos dados dos sistemas legados - Atributos Informação Fixa
+- 3313.11.051. Extração dos dados dos sistemas legados - Atributos Valor Fixo
+- 3313.07.01. Análise dos Sistemas Legados
+- 3313.07.02. Especificação de Layout para extração de dados
+- 3313.07.04. Parametrização de Ferramenta ETL
+- 3313.07.05. Extração dos dados dos sistemas legados
+- 3313.07.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.07.07. Geração das tabelas formato Ergon
+- 3313.07.08. Carga de Dados no Sistema Ergon
+- 3313.07.09. Geração de Relatório das Rejeições
+- 3313.07.10. Análise e Correções das rejeições
+- 3313.09.01. Análise dos Sistemas Legados
+- 3313.09.02. Especificação de Layout para extração de dados
+- 3313.09.03. Construção dos Arquivos DePara
+- 3313.09.04. Parametrização de Ferramenta ETL
+- 3313.09.05. Extração dos dados dos sistemas legados
+- 3313.09.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.09.07. Geração das tabelas formato Ergon
+- 3313.09.08. Carga de Dados no Sistema Ergon
+- 3313.09.09. Geração de Relatório das Rejeições
+- 3313.09.10. Análise e Correções das rejeições
+- 3313.10. Rquisições
+- 3313.11.05. Extração dos dados dos sistemas legados
+- 3313.15.01. Análise dos Sistemas Legados
+- 3313.15.02. Especificação de Layout para extração de dados
+- 3313.15.03. Construção dos Arquivos DePara
+- 3313.15.04. Parametrização de Ferramenta ETL
+- 3313.15.05. Extração dos dados dos sistemas legados
+- 3313.15.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.15.07. Geração das tabelas formato Ergon
+- 3313.15.08. Carga de Dados no Sistema Ergon
+- 3313.15.09. Geração de Relatório das Rejeições
+- 3313.15.10. Análise e Correções das rejeições
+- 3313.12.01. Análise dos Sistemas Legados
+- 3313.12.02. Especificação de Layout para extração de dados
+- 3313.12.03. Construção dos Arquivos DePara
+- 3313.12.04. Parametrização de Ferramenta ETL
+- 3313.12.05. Extração dos dados dos sistemas legados
+- 3313.12.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.12.07. Geração das tabelas formato Ergon
+- 3313.12.08. Carga de Dados no Sistema Ergon
+- 3313.12.09. Geração de Relatório das Rejeições
+- 3313.12.10. Análise e Correções das rejeições
+- 3313.14.01. Análise dos Sistemas Legados
+- 3313.14.02. Especificação de Layout para extração de dados
+- 3313.14.03. Construção dos Arquivos DePara
+- 3313.14.04. Parametrização de Ferramenta ETL
+- 3313.14.05. Extração dos dados dos sistemas legados
+- 3313.14.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.14.07. Geração das tabelas formato Ergon
+- 3313.14.08. Carga de Dados no Sistema Ergon
+- 3313.14.09. Geração de Relatório das Rejeições
+- 3313.14.10. Análise e Correções das rejeições
+- 3313.13. Regras de Pensão Alimento
+- 3313.13.01. Análise dos Sistemas Legados
+- 3313.13.02. Especificação de Layout para extração de dados
+- 3313.13.03. Construção dos Arquivos DePara
+- 3313.13.04. Parametrização de Ferramenta ETL
+- 3313.13.05. Extração dos dados dos sistemas legados
+- 3313.13.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.13.07. Geração das tabelas formato Ergon
+- 3313.13.08. Carga de Dados no Sistema Ergon
+- 3313.13.09. Geração de Relatório das Rejeições
+- 3313.13.10. Análise e Correções das rejeições
+- 3313.08.01. Análise dos Sistemas Legados
+- 3313.08.02. Especificação de Layout para extração de dados
+- 3313.08.03. Construção dos Arquivos DePara
+- 3313.08.04. Parametrização de Ferramenta ETL
+- 3313.08.05. Extração dos dados dos sistemas legados
+- 3313.08.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.08.07. Geração das tabelas formato Ergon
+- 3313.08.08. Carga de Dados no Sistema Ergon
+- 3313.08.09. Geração de Relatório das Rejeições
+- 3313.08.10. Análise e Correções das rejeições
+- 3313.16. Contribuições Previdenciárias
+- 3313.16.01. Análise dos Sistemas Legados
+- 3313.16.02. Especificação de Layout para extração de dados
+- 3313.16.03. Construção dos Arquivos DePara
+- 3313.16.04. Parametrização de Ferramenta ETL
+- 3313.16.05. Extração dos dados dos sistemas legados
+- 3313.16.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.16.07. Geração das tabelas formato Ergon
+- 3313.16.08. Carga de Dados no Sistema Ergon
+- 3313.16.09. Geração de Relatório das Rejeições
+- 3313.16.10. Análise e Correções das rejeições
+- 3313.17. Lançamentos Manuais Pré-Ergon
+- 3313.17.01. Análise dos Sistemas Legados
+- 3313.17.02. Especificação de Layout para extração de dados
+- 3313.17.03. Construção dos Arquivos DePara
+- 3313.17.04. Parametrização de Ferramenta ETL
+- 3313.17.05. Extração dos dados dos sistemas legados
+- 3313.17.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.17.07. Geração das tabelas formato Ergon
+- 3313.17.08. Carga de Dados no Sistema Ergon
+- 3313.17.09. Geração de Relatório das Rejeições
+- 3313.17.10. Análise e Correções das rejeições
+- 3313.18. Perícias Médicas
+- 3313.18.01. Detalhar Tabelas
+- Grupo 01- Programação
+- Grupo 02- Testes da Consultoria
+- Grupo 21 - Gratificações - Saúde
+- Grupo 22 - Gratificações - Educação
+- 3922. Operação Assistida-2
+- 03.04.50.06 - Análise dos relatórios de Comparação
+- 03.04.50.05 - Execução do processo de Comparação das Folhas
+- 03.04.50.04 - Processameno do cálculo da folha
+- 03.04.01.50-Testes Completos de Folha
+- 3922. Alimentação do sistema pelos usuários
+- 3921. Operação Assistida-1
+- belecido
+- Entregável do Projeto
+- a > 50%
+- a < 50%
+- a < 35%
+- 03.04.01.01 - Grupo 01- Salário, Vencimento, Proventos e afins
+- 03.04.01.02 - Grupo 02 - Comissionado, Função de Direção e Gratificada
+- 03.04.01.04 - Grupo 04 - Bônus, Prêmios e Produtividades
+- 03.04.01.05 - Grupo 05 - Abonos
+- 03.04.01.08 - Grupo 08 - Gratificações - Demais órgãos
+- 03.04.01.09 - Grupo 09 - Auxilio Saúde, Doença
+- 03.04.01.10 - Grupo 10 - Condição de trabalho, atividades e jornada
+- 03.04.01.11 - Grupo 11 - Outros auxílios, Benefícios, Bolsas e Ajuda de Custo
+- 03.04.01.12 - Grupo 12 - Tempo de Serviço (quinquênios e anuênios)
+- 03.04.01.14 - Grupo 14 - 1/3 Férias, Adiantamentos, Empréstimos, Compensações
+- 03.04.01.16 - Grupo 16 - Pensões Alimentícias
+- 03.04.01.17 - Grupo 17 - Licenças e Afastamentos
+- 03.04.01.18 - Grupo 18 - Pensões Previdenciárias e Especiais
+- 03.04.01.19 - Grupo 19 - Deduções: faltas, atrasos e suspensões
+- 03.04.01.20 - Grupo 20 - Consignações: Bancos e Cooperativas
+- 03.04.01.06 - Grupo 06 - Gratificações - SEDUC
+- 03.04.01.07 - Grupo 07 - Gratificações - SESAU
+- 03.04.01.22 - Grupo 22 - Previdência (INSS, Privada, Regime Próprio)
+- 03.04.01.23 - Grupo 23 - Vale Transporte
+- 03.04.01.21 - Grupo 21 - Sindicatos, associações, serviços
+- 03.04.01.26 - Grupo 26 - Margem Consignação
+- 03.04.01.28 - Grupo 28 - Contabilização do Siafen
+- 03.04.01.29 - Grupo 29 - Simulações de Cálculos
+- 03.04.01.29 - Grupo 29 - Outros Tipos de Folha
+- 03.04.01.24 - Grupo 24 - Limite Constitucional. Imposto de Renda (incluindo RRA)
+- 03.04.01.13 - Grupo 13 - Salário Maternidade
+- 03.04.01.15 - Grupo 15 - Adiantamento 13o, 13o, Compensações
+- Grupo 03 - Análise do Levantamento de Regras de Calculo
+- Grupo 03 - Programação
+- Grupo 03- Testes da Consultoria
+- Grupo 03 - Homologação
+- Grupo 04 - Análise do Levantamento de Regras de Calculo
+- Grupo 04 - Programação
+- Grupo 04- Testes da Consultoria
+- Grupo 04 - Homologação
+- Grupo 05 - Análise do Levantamento de Regras de Calculo
+- Grupo 05 - Programação
+- Grupo 05- Testes da Consultoria
+- Grupo 05 - Homologação
+- Grupo 06 - Análise do Levantamento de Regras de Calculo
+- Grupo 06 - Programação
+- Grupo 06- Testes da Consultoria
+- Grupo 06 - Homologação
+- Grupo 07 - Análise do Levantamento de Regras de Calculo
+- Grupo 07 - Programação
+- Grupo 07- Testes da Consultoria
+- Grupo 07 - Homologação
+- Grupo 08 - Análise do Levantamento de Regras de Calculo
+- Grupo 08 - Programação
+- Grupo 08- Testes da Consultoria
+- Grupo 08 - Homologação
+- Grupo 09 - Análise do Levantamento de Regras de Calculo
+- Grupo 09 - Programação
+- Grupo 09- Testes da Consultoria
+- Grupo 09 - Homologação
+- Grupo 10 - Análise do Levantamento de Regras de Calculo
+- Grupo 10 - Programação
+- Grupo 10- Testes da Consultoria
+- Grupo 10 - Homologação
+- Grupo 11 - Análise do Levantamento de Regras de Calculo
+- Grupo 11 - Programação
+- Grupo 11- Testes da Consultoria
+- Grupo 11 - Homologação
+- Grupo 12 - Análise do Levantamento de Regras de Calculo
+- Grupo 12 - Programação
+- Grupo 12- Testes da Consultoria
+- Grupo 12 - Homologação
+- Grupo 13 - Análise do Levantamento de Regras de Calculo
+- Grupo 13 - Programação
+- Grupo 13- Testes da Consultoria
+- Grupo 13 - Homologação
+- Grupo 14 - Análise do Levantamento de Regras de Calculo
+- Grupo 14 - Programação
+- Grupo 14- Testes da Consultoria
+- Grupo 14 - Homologação
+- Grupo 16 - Análise do Levantamento de Regras de Calculo
+- Grupo 16 - Programação
+- Grupo 16- Testes da Consultoria
+- Grupo 16 - Homologação
+- Grupo 25 - Análise do Levantamento de Regras de Calculo
+- Grupo 25 - Programação
+- Grupo 25- Testes da Consultoria
+- Grupo 25 - Homologação
+- Grupo 24 - Análise do Levantamento de Regras de Calculo
+- Grupo 24 - Programação
+- Grupo 24- Testes da Consultoria
+- Grupo 24 - Homologação
+- Grupo 17 - Análise do Levantamento de Regras de Calculo
+- Grupo 17 - Programação
+- Grupo 17- Testes da Consultoria
+- Grupo 17 - Homologação
+- Grupo 19 - Análise do Levantamento de Regras de Calculo
+- Grupo 19 - Programação
+- Grupo 19- Testes da Consultoria
+- Grupo 19 - Homologação
+- Grupo 20 - Análise do Levantamento de Regras de Calculo
+- Grupo 20 - Programação
+- Grupo 20- Testes da Consultoria
+- Grupo 20 - Homologação
+- Grupo 21 - Análise do Levantamento de Regras de Calculo
+- Grupo 21 - Programação
+- Grupo 21- Testes da Consultoria
+- Grupo 21 - Homologação
+- Grupo 18 - Análise do Levantamento de Regras de Calculo
+- Grupo 18 - Programação
+- Grupo 18- Testes da Consultoria
+- Grupo 18 - Homologação
+- Grupo 22 - Análise do Levantamento de Regras de Calculo
+- Grupo 22 - Programação
+- Grupo 22- Testes da Consultoria
+- Grupo 22 - Homologação
+- Grupo 23 - Análise do Levantamento de Regras de Calculo
+- Grupo 23 - Programação
+- Grupo 23- Testes da Consultoria
+- Grupo 23 - Homologação
+- Grupo 26 - Análise do Levantamento de Regras de Calculo
+- Grupo 26 - Programação
+- Grupo 26- Testes da Consultoria
+- Grupo 26 - Homologação
+- Analise e Levantamento das verbas da Prefeitura
+- Levantamento da situação real do projeto da PCR
+- 3313.10. Requisições
+- 03.04.50-Paralelo da Folha de Pagamento
+- 03.04. Folha de Pagamento
+- mento
+- 03.04.10-Testes Completos de Folha
+- 03.04.10.01 - Processameno do cálculo da folha
+- 03.04.10.02 - Execução do processo de Comparação das Folhas
+- 03.04.10.03 - Análise dos relatórios de Comparação
+- 03.04.50.01. Migração Definitiva e Bloqueio Sistema Consist
+- 03.04.50.02. Alimentação do sistema pelos usuários
+- 03.04.50.03. Atividades Pre Folha
+- 3923.Processameno do cálculo da folha Definitiva
+- 03.12. Integrações
+- 03.12.02. SAGRES
+- 03.12.03. FACIL
+- 03.12.04. VEM Grande Recife
+- 03.12.05. SEFIN
+- SAGRES - Levantamento das necessidades e requisitos/Edital
+- SAGRES - Elaboração da Especificação Funcional
+- SAGRES - Aprovação da Especificação Funcional
+- SAGRES - Elaboração da Especificação Técnica
+- SAGRES - Desenvolvimento
+- SAGRES - Instalação em ambiente do cliente
+- SAGRES - Encerramento da Homologação
+- SAGRES - Homologação
+- SAGRES -Ajustes/Correções pós homologação
+- 03.12.06. SAÚDE RECIFE
+- 03.12.07. SICREF
+- 03.12.11. INTEGRAÇÃO 11
+- 03.11. Customizações - Etapa 1
+- 03-3.01 - Revisão do Cronograma
+- FACIL -  Levantamento das necessidades e requisitos/Edital
+- FACIL -  Elaboração da Especificação Funcional
+- FACIL -  Aprovação da Especificação Funcional
+- FACIL -  Elaboração da Especificação Técnica
+- FACIL -  Desenvolvimento
+- FACIL -  Instalação em ambiente do cliente
+- FACIL -  Homologação
+- FACIL -  Ajustes/Correções pós homologação
+- FACIL -  Encerramento da Homologação
+- VEM -  Levantamento das necessidades e requisitos/Edital
+- VEM -  Elaboração da Especificação Funcional
+- VEM -  Aprovação da Especificação Funcional
+- VEM -  Elaboração da Especificação Técnica
+- VEM -  Desenvolvimento
+- VEM -  Instalação em ambiente do cliente
+- VEM -  Homologação
+- VEM -  Ajustes/Correções pós homologação
+- VEM -  Encerramento da Homologação
+- SEFIN -  Levantamento das necessidades e requisitos/Edital
+- SEFIN -  Elaboração da Especificação Funcional
+- SEFIN -  Aprovação da Especificação Funcional
+- SEFIN -  Elaboração da Especificação Técnica
+- SEFIN -  Desenvolvimento
+- SEFIN -  Instalação em ambiente do cliente
+- SEFIN -  Homologação
+- SEFIN -  Ajustes/Correções pós homologação
+- SEFIN -  Encerramento da Homologação
+- SAÚDE RECIFE -  Levantamento das necessidades e requisitos/Edital
+- SAÚDE RECIFE -  Elaboração da Especificação Funcional
+- SAÚDE RECIFE -  Aprovação da Especificação Funcional
+- SAÚDE RECIFE -  Elaboração da Especificação Técnica
+- SAÚDE RECIFE -  Desenvolvimento
+- SAÚDE RECIFE -  Instalação em ambiente do cliente
+- SAÚDE RECIFE -  Homologação
+- SAÚDE RECIFE -  Ajustes/Correções pós homologação
+- SAÚDE RECIFE -  Encerramento da Homologação
+- SICREF -  Levantamento das necessidades e requisitos/Edital
+- SICREF -  Elaboração da Especificação Funcional
+- SICREF -  Aprovação da Especificação Funcional
+- SICREF -  Elaboração da Especificação Técnica
+- SICREF -  Desenvolvimento
+- SICREF -  Instalação em ambiente do cliente
+- SICREF -  Homologação
+- SICREF -  Ajustes/Correções pós homologação
+- SICREF -  Encerramento da Homologação
+- 03.12.08. Portal da Transparência
+- Apoio e consultoria no Levantamento das verbas
+- 03.11.01.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.01.01 - Elaboração da Especificação Funcional
+- 03.11.01.01 - Aprovação da Especificação Funcional
+- 03.11.01.01 - Elaboração da Especificação Técnica
+- 03.11.01.01 - Desenvolvimento
+- 03.11.01.01 - Instalação em ambiente do cliente
+- 03.11.01.01 - Homologação
+- 03.11.01.01 - Ajustes/Correções pós homologação
+- 03.11.01.01 - Encerramento da Homologação
+- 03.11.01. Lote 1
+- 03.11.02. Lote 2
+- 03.11.02.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.02.01 - Elaboração da Especificação Funcional
+- 03.11.02.01 - Aprovação da Especificação Funcional
+- 03.11.02.01 - Elaboração da Especificação Técnica
+- 03.11.02.01 - Desenvolvimento
+- 03.11.02.01 - Instalação em ambiente do cliente
+- 03.11.02.01 - Homologação
+- 03.11.02.01 - Ajustes/Correções pós homologação
+- 03.11.02.01 - Encerramento da Homologação
+- 03.11.03. Lote 3
+- 03.11.03.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.03.01 - Elaboração da Especificação Funcional
+- 03.11.03.01 - Aprovação da Especificação Funcional
+- 03.11.03.01 - Elaboração da Especificação Técnica
+- 03.11.03.01 - Desenvolvimento
+- 03.11.03.01 - Instalação em ambiente do cliente
+- 03.11.03.01 - Homologação
+- 03.11.03.01 - Ajustes/Correções pós homologação
+- 03.11.03.01 - Encerramento da Homologação
+- 03.02.01. Estrutura Organizacional - Parametrização
+- ops e Levantamentos F1
+- Levantamentos e Definições iniciais
+- Marco Levantamento e Parametrização
+- Documentação e Avaliação e Ajustes
+- Marco Homologação Parametrização
+- Parametrização da Estrutura Organizacional
+- 03.02.02. Registro Pessoal - Parametrização
+- Parametrização do Registro de Pessoal
+- 03.02.03. Vínculo Funcional - Parametrização
+- Parametrização do Vínculo Funcional
+- 03.02.04. Cargos - Parametrização
+- Parametrização dos Cargos
+- 03.02.05. Eventos de Cargos - Parametrização
+- Ajustes finais na Parametrização dos Eventos de Cargos
+- 03.02.06. Frequência e Afastamentos - Parametrização
+- Apoio ao Levantamentos e Definições iniciais
+- Apoio à Parametrização de Frequência e Afastamentos
+- 03.02.07. Cessões - Parametrização
+- Parametrizações de Cessões
+- 03.02.08. Controle de Ocupação de Cargos por Quadro - Parametrização
+- Parametrização do Controle de Ocupação de Cargos por Quadro
+- 03.02.09. Controle de Ocupação de Vagas Numeradas - Parametrização
+- Parametrização co Controle de Ocupação de Vagas Numeradas
+- 03.02.10. Pensão Previdênciária - Parametrização
+- Parametrização da Pensão Previdenciária
+- 03.02.11. Pensão Especial - Parametrização
+- Parametrização da Pensão Especial
+- 03.02.12. Pensão Alimentícia - Parametrização
+- Parametrização de Pensão Alimentícia
+- 03.02.14. Períodos Aquisitivos e Licença Prêmio -Parametrização
+- hops e Levantamentos F1
+- Parametrização de Períodos Aquisitivos e Licença Prêmio
+- 03.02.15. Atributos - Parametrização
+- shops e Levantamentos F1
+- 03.02.15.01. Levantamentos e Definições iniciais
+- Marco Homologação Parametrização Atributos
+- Parametrização de Atributos
+- 03.02.16. Ingressos - Parametrização
+- Parametrização de Ingressos
+- 03.02.17. Concurso - Parametrização
+- Parametrização de Concurso
+- 03.02.18. Contribuições Previdenciárias - Parametrização
+- Parametrização de Contribuições Previdenciárias
+- 03.02.19. Averbações de Tempo - Parametrização
+- Parametrização de Averbações de Tempo
+- 03.02.20. Perícias Médicas - Parametrização
+- 03.02.20.05. Marco Homologação Parametrização
+- Parametrização de Perícias Médicas
+- 03.02.30. Ajustes das Parametrizações - Sessões de Suporte
+- Ajustes
+- Testes finais das Parametrizações e Passagem da Gestão das Mesmas
+- 03.02.13. Períodos Aquisitivos e Férias - Parametrização
+- Parametrização de Períodos Aquisitivos e Férias
+- 3313.19. PA e Gozo de Licença Prêmio
+- 3313.07.19. Análise dos Sistemas Legados
+- 3313.07.19. Especificação de Layout para extração de dados
+- 3313.06.19. Construção dos Arquivos DePara
+- 3313.07.19. Parametrização de Ferramenta ETL
+- 3313.07.19. Extração dos dados dos sistemas legados
+- 3313.07.19. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.07.19. Geração das tabelas formato Ergon
+- 3313.07.19. Carga de Dados no Sistema Ergon
+- 3313.07.19. Geração de Relatório das Rejeições
+- 3313.07.19. Análise e Correções das rejeições
+- Parametrização dos Eventos de Cargos
+- Parametrização de Frequência e Afastamentos
+- 03.02.01.01. Levantamentos e Definições iniciais
+- 03.02.01.02. Marco Levantamento e Parametrização
+- 03.02.01.03. Documentação e Avaliação e Ajustes
+- 03.02.01.04. Marco Homologação Parametrização
+- 03.02.01.05. Parametrização da Estrutura Organizacional
+- 03.02.02.01. Levantamentos e Definições iniciais
+- 03.02.02.02. Marco Levantamento e Parametrização
+- 03.02.02.03. Documentação e Avaliação e Ajustes
+- 03.02.02.04. Marco Homologação Parametrização
+- 03.02.02.05. Parametrização do Registro de Pessoal
+- 03.02.03.01. Levantamentos e Definições iniciais
+- 03.02.03.02. Marco Levantamento e Parametrização
+- 03.02.03.03. Documentação e Avaliação e Ajustes
+- 03.02.03.04. Marco Homologação Parametrização
+- 03.02.03.05. Parametrização do Vínculo Funcional
+- 03.02.04.01. Levantamentos e Definições iniciais
+- 03.02.04.02. Marco Levantamento e Parametrização
+- 03.02.04.03. Documentação e Avaliação e Ajustes
+- 03.02.04.04. Marco Homologação Parametrização
+- 03.02.04.05. Parametrização dos Cargos
+- 03.02.05.01. Levantamentos e Definições iniciais
+- 03.02.05.02. Marco Levantamento e Parametrização
+- 03.02.05.03. Documentação e Avaliação e Ajustes
+- 03.02.05.04. Marco Homologação Parametrização
+- 03.02.05.06. Ajustes finais na Parametrização dos Eventos de Cargos
+- Apoio à Parametrizações de Cessões
+- 03.02.05.05. Parametrização dos Eventos de Cargos
+- Apoo à Parametrização do Controle de Ocupação de Cargos por Quadro
+- Apoo à Parametrização co Controle de Ocupação de Vagas Numeradas
+- Apoio à Parametrização da Pensão Previdenciária
+- Apoio à Parametrização da Pensão Especial
+- Apoio à Parametrização de Pensão Alimentícia
+- Apoio à Parametrização de Períodos Aquisitivos e Férias
+- Apoio à Parametrização de Períodos Aquisitivos e Licença Prêmio
+- Apoio à Parametrização de Atributos
+- Apoio à Parametrização de Ingressos
+- Apoio à Parametrização de Concurso
+- Apoo à Parametrização de Contribuições Previdenciárias
+- Apoio à Parametrização de Averbações de Tempo
+- Apoio à Parametrização de Perícias Médicas
+- 03.02.06.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.06.03. Marco Levantamento e Parametrização
+- 03.02.06.04. Documentação e Avaliação e Ajustes
+- 03.02.06.05. Marco Homologação Parametrização
+- 03.02.05.07. Apoio à Parametrização de Frequência e Afastamentos
+- 03.02.07.01. Levantamentos e Definições iniciais
+- 03.02.07.03. Marco Levantamento e Parametrização
+- 03.02.07.04. Documentação e Avaliação e Ajustes
+- 03.02.07.05. Marco Homologação Parametrização
+- 03.02.07.07. Apoio à Parametrizações de Cessões
+- 03.02.08.01. Levantamentos e Definições iniciais
+- 03.02.08.03. Marco Levantamento e Parametrização
+- 03.02.08.04. Documentação e Avaliação e Ajustes
+- 03.02.08.05. Marco Homologação Parametrização
+- 03.02.08.06. Parametrização do Controle de Ocupação de Cargos por Quadro
+- 03.02.09.01. Levantamentos e Definições iniciais
+- 03.02.09.03. Marco Levantamento e Parametrização
+- 03.02.09.04. Documentação e Avaliação e Ajustes
+- 03.02.09.05. Marco Homologação Parametrização
+- 03.02.09.06. Parametrização co Controle de Ocupação de Vagas Numeradas
+- 03.02.10.01. Levantamentos e Definições iniciais
+- 03.02.10.03. Marco Levantamento e Parametrização
+- 03.02.10.04. Documentação e Avaliação e Ajustes
+- 03.02.10.05. Marco Homologação Parametrização
+- 03.02.11.01. Levantamentos e Definições iniciais
+- 03.02.11.03. Marco Levantamento e Parametrização
+- 03.02.11.04. Documentação e Avaliação e Ajustes
+- 03.02.11.05. Marco Homologação Parametrização
+- 03.02.12.01. Levantamentos e Definições iniciais
+- 03.02.12.03. Marco Levantamento e Parametrização
+- 03.02.12.04. Documentação e Avaliação e Ajustes
+- 03.02.12.05. Marco Homologação Parametrização
+- 03.02.14.01. Levantamentos e Definições iniciais
+- 03.02.14.03. Marco Levantamento e Parametrização
+- 03.02.14.04. Documentação e Avaliação e Ajustes
+- 03.02.14.05. Marco Homologação Parametrização
+- 03.02.15.03. Marco Levantamento e Parametrização
+- 03.02.15.04. Documentação e Avaliação e Ajustes
+- 03.02.15.05. Marco Homologação Parametrização
+- 03.02.16.01. Levantamentos e Definições iniciais
+- 03.02.16.03. Marco Levantamento e Parametrização
+- 03.02.16.04. Documentação e Avaliação e Ajustes
+- 03.02.16.05. Marco Homologação Parametrização
+- 03.02.17.01. Levantamentos e Definições iniciais
+- 03.02.17.03. Marco Levantamento e Parametrização
+- 03.02.17.04. Documentação e Avaliação e Ajustes
+- 03.02.17.05. Marco Homologação Parametrização
+- 03.02.18.01. Levantamentos e Definições iniciais
+- 03.02.18.03. Marco Levantamento e Parametrização
+- 03.02.18.04. Documentação e Avaliação e Ajustes
+- 03.02.18.05. Marco Homologação Parametrização
+- 03.02.19.01. Levantamentos e Definições iniciais
+- 03.02.19.03. Marco Levantamento e Parametrização
+- 03.02.19.04. Documentação e Avaliação e Ajustes
+- 03.02.19.05. Marco Homologação Parametrização
+- 03.02.20.01. Levantamentos e Definições iniciais
+- 03.02.20.03. Marco Levantamento e Parametrização
+- 03.02.20.04. Documentação e Avaliação e Ajustes
+- 03.02.13.01. Levantamentos e Definições iniciais
+- 03.02.13.03. Marco Levantamento e Parametrização
+- 03.02.13.04. Documentação e Avaliação e Ajustes
+- 03.02.13.05. Marco Homologação Parametrização
+- 03.02.06.01. Levantamentos e Definições iniciais
+- 03.02.06.06. Parametrização de Frequência e Afastamentos
+- 03.02.07.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.08.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.09.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.10.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.11.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.12.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.13.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.14.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.15.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.16.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.17.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.18.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.19.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.20.02. Apoio ao Levantamentos e Definições iniciais
+- 03.02.07.06. Parametrizações de Cessões
+- 03.02.08.07. Apoo à Parametrização do Controle de Ocupação de Cargos por Quadro
+- 03.02.09.07. Apoo à Parametrização co Controle de Ocupação de Vagas Numeradas
+- 03.02.30.03. Homologação das Parametrizações
+- 03.02.10.06. Parametrização da Pensão Previdenciária
+- 03.02.11.06. Parametrização da Pensão Especial
+- 03.02.12.06. Parametrização de Pensão Alimentícia
+- 03.02.14.06. Parametrização de Períodos Aquisitivos e Licença Prêmio
+- 03.02.15.06. Parametrização de Atributos
+- 03.02.16.06. Parametrização de Ingressos
+- 03.02.17.06. Parametrização de Concurso
+- 03.02.18.06. Parametrização de Contribuições Previdenciárias
+- 03.02.19.06. Parametrização de Averbações de Tempo
+- 03.02.20.06. Parametrização de Perícias Médicas
+- 03.02.30.01. Ajustes
+- 03.02.30.02. Testes finais das Parametrizações e Passagem da Gestão das Mesmas
+- 03.02.13.06. Parametrização de Períodos Aquisitivos e Férias
+- 03.02.10.07. Apoio à Parametrização da Pensão Previdenciária
+- 03.02.11.07. Apoio à Parametrização da Pensão Especial
+- 03.02.12.07. Apoio à Parametrização de Pensão Alimentícia
+- 03.02.13.07. Apoio à Parametrização de Períodos Aquisitivos e Férias
+- 03.02.14.07. Apoio à Parametrização de Períodos Aquisitivos e Licença Prêmio
+- 03.02.15.07. Apoio à Parametrização de Atributos
+- 03.02.16.07. Apoio à Parametrização de Ingressos
+- 03.02.17.07. Apoio à Parametrização de Concurso
+- 03.02.18.07. Apoo à Parametrização de Contribuições Previdenciárias
+- 03.02.19.07. Apoio à Parametrização de Averbações de Tempo
+- 03.02.20.07. Apoio à Parametrização de Perícias Médicas
+- Grupo 27 - Análise do Levantamento de Regras de Calculo
+- Grupo 27 - Programação
+- Grupo 27- Testes da Consultoria
+- Grupo 27 - Homologação
+- 03.04.01.28 - Grupo 28 - Adiantamento 13o, 13o, Compensações
+- Grupo 28 - Análise do Levantamento de Regras de Calculo
+- Grupo 28 - Programação
+- Grupo 28- Testes da Consultoria
+- Grupo 28 - Homologação
+- Grupo 29 - Análise do Levantamento de Regras de Calculo
+- Grupo 29 - Programação
+- Grupo 29- Testes da Consultoria
+- Grupo 29 - Homologação
+- 1.1. Reunião Inicial - Assinatura de Contrato - Início do Projeto
+- 03.12.10. INTEGRAÇÃO 10
+- 03.12.09. INTEGRAÇÃO 09
+- 03.12.08. INTEGRAÇÃO 08
+- Projeto de Implantação do Sistema Ergon - PCR
+- Atividade Antecipada
+- Atividade atrasada < 35%
+- 3313.04.05. Extração dos dados (Cargos em Comissão e Funções) dos sistemas legados
+- 3313.04.05. Extração dos dados (Cargos Efetivos) dos sistemas legados
+- 03.01-02. Testes, Provas e Casos de Uso
+- 03.04.50. Paralelo da Folha de Pagamento
+- 03.04.10. Testes Completos de Folha
+- 03.01. Levantamentos de Processos e Casos de Uso
+- Atividade atrasada < 50%
+- 03.11.01.01 - Temas a tratar  (Concurso, Ingresso e Eventos)
+- 03.11.01.01 - 4.4 Seleção para Cargos em Comissão e Funções Gratificadas
+- 03.11.01.01 - 4.2 Seleção Simplificada
+- 03.11.01.01 - 4.1 Recrutamento, Seleção e Ingresso de Servidores
+- 03.11.01.01 - 2.5 Vínculo Funcional
+- 03.11.01.01 - 4.7 Contratos Temporários
+- 03.11.01.01 - 4.6 Nomeação e Posse
+- 03.11.02.01 - Temas a tratar
+- 03.11.02.01 - 5.1.4 Frequência
+- 03.11.02.01 - 5.1.5 Férias, Licença Prêmio e TRE
+- 03.11.02.01 - 5.1.6 Escala de Serviços
+- 03.11.02.01 - 5.1.7 Afastamentos
+- 03.11.02.01 - 5.1.8 Cessão de Pessoal
+- 03.11.03.01 - Temas a tratar
+- 03.11.03.01 - 6.5 Pensão Alimentícia
+- bono Permanência, Pensão, Averbação e Contagem de Tempo
+- 03.11.04. Lote 4
+- 03.11.04.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.04.01 - Temas a tratar
+- 03.11.04.01 - Elaboração da Especificação Funcional
+- 03.11.04.01 - Aprovação da Especificação Funcional
+- 03.11.04.01 - Elaboração da Especificação Técnica
+- 03.11.04.01 - Desenvolvimento
+- 03.11.04.01 - Instalação em ambiente do cliente
+- 03.11.04.01 - Homologação
+- 03.11.04.01 - Ajustes/Correções pós homologação
+- 03.11.04.01 - Encerramento da Homologação
+- 03.11.04.01 - 6.11 Consultas e Relatórios
+- 03.11.04.01 - 6.9 Remessa Bancária
+- Instalação e compilação do Kernel da folha
+- 03.11.01.01 - Alinhamento eSocial
+- 03.11.02.01 - Alinhamento eSocial
+- 03.11.03.01 - Alinhamento eSocial
+- 3313.20. eSocial
+- 3313.20.01. Definição do formato dos arquivos XML ou dados
+- 3313.20.02. Especificação de Layout para extração de dados
+- 3313.20.03. Construção dos Arquivos DePara
+- 3313.20.04. Parametrização de Ferramenta ETL
+- 3313.20.05. Extração dos dados dos sistemas legados
+- 3313.20.06. Carga dos dados nas tabelas em ambiente de Migração
+- 3313.20.07. Geração das tabelas formato Ergon
+- 3313.20.08. Carga de Dados no Sistema Ergon
+- 03.11.05. Lote 5
+- 03.11.05.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.05.01 - Temas a tratar
+- 03.11.05.01 - Perícias Médicas
+- 03.11.05.01 - Alinhamento eSocial
+- 03.11.05.01 - Elaboração da Especificação Funcional
+- 03.11.05.01 - Aprovação da Especificação Funcional
+- 03.11.05.01 - Elaboração da Especificação Técnica
+- 03.11.05.01 - Desenvolvimento
+- 03.11.05.01 - Instalação em ambiente do cliente
+- 03.11.05.01 - Homologação
+- 03.11.05.01 - Ajustes/Correções pós homologação
+- 03.11.05.01 - Encerramento da Homologação
+- 03.11.06. Lote 6
+- 03.11.06.01 - Levantamento das necessidades e requisitos/Edital
+- 03.11.06.01 - Temas a tratar
+- 03.11.06.01 - EPs Atributos
+- 03.11.06.01 - Alinhamento eSocial
+- 03.11.06.01 - Elaboração da Especificação Funcional
+- 03.11.06.01 - Aprovação da Especificação Funcional
+- 03.11.06.01 - Elaboração da Especificação Técnica
+- 03.11.06.01 - Desenvolvimento
+- 03.11.06.01 - Instalação em ambiente do cliente
+- 03.11.06.01 - Homologação
+- 03.11.06.01 - Ajustes/Correções pós homologação
+- 03.11.06.01 - Encerramento da Homologação
+- 03.11.06.01 - 2.2 Estrutura Organizacional / Setores Ergon
+- 03.11.06.01 - Comissões e Conselhos
+- 03.11.03.01 - 3.2 Convênios, Benefícios e Vale Transporte
+- 03.11.03.01 - 5.1.13 Aposentadoria, Abono Permanência, Pensão, Averbação e Contagem de Tempo
+- 03.12.01. Sistema de Estágio
+- Sistema de Estágio - Levantamento das necessidades e requisitos/Edital
+- Sistema de Estágio - Elaboração da Especificação Funcional
+- Sistema de Estágio - Aprovação da Especificação Funcional
+- Sistema de Estágio - Elaboração da Especificação Técnica
+- Sistema de Estágio - Desenvolvimento
+- Sistema de Estágio - Instalação em ambiente do cliente
+- Sistema de Estágio - Homologação
+- Sistema de Estágio - Ajustes/Correções pós homologação
+- Sistema de Estágio - Encerramento da Homologação
+- 03-3.01 - Levantamento da situação real do projeto da PCR
+- Elaboração dos Conectores - 4
+- 372. Preparação do Material de Treinamento
+- Elaboração dos Conectores - 3
+- Elaboração dos Conectores - 2
+- Elaboração dos Conectores - 1
+- 03.02.20.06.01. Grupos de Perícias
+- 03.02.20.06.02. Tipos de Perícias
+- 03.02.20.06.03. Comutação de Perícias
+- 03.02.20.06.04. Decisões
+- 03.02.20.06.05. Locais de Atendimento
+- 03.02.20.06.06. Equipes
+- 03.02.20.06.07. Médicos
+- 03.02.20.06.08. Profissionais
+- 03.02.20.06.09. Agendas
+- 03.02.20.06.10. Questionários
+- 03.02.20.06.11. Exames
+- 03.02.20.06.12. Tipos de Acidente
+- 03.02.20.06.13. Especialidades
+- 03.02.20.06.14. Protocolos de CIDs
+- 03.02.20.06.15. Opções Genéricas
+- 03.02.20.06.16. Tabelas Gerais
+- 03.02.21. Segurança de Acesso
+- 03.02.21.01. Criação de Usuários
+- 03.02.21.02. Padrões de Acesso
+- 03.02.21.03. Perfis de Segurança por Transação
+- 03.02.21.04. Perfis de Segurança por Setor
+- 03.02.21.05. Perfis de Segurança por Frequência
+- 03.02.21.06. Perfis de Segurança por Atributos
+- 03.02.21.07. Perfis de Segurança por Pastas Funcionais
+- 03.02.21.08. Padrões de Relatórios
+- 03.02.21.09. Padrões de Consultas
+- 03.02.21.10. Padrões de Rotinas
+- 03.02.21.11. Apoio à Parametrização Segurança de Acesso
+- TBkndOutlCode
+- VÍNCULO_4
+- VÍNCULO_5
+- &Gráfico de Gantt
+- Entrada
+- E:\Techne\Ergon\PCR\Gestão\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp!
+- E:\Techne\Ergon\PCR\Gestão\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp!VÍNCULO_4
+- o 3.0.mpp!VÍNCULO_4
+- C:\Users\silvia.brito\Documents\PCR\Cronograma\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp!
+- C:\Users\silvia.brito\Documents\PCR\Cronograma\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp!VÍNCULO_6
+- ULO_6
+- C:\Users\silvia.brito\Downloads\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp!VÍNCULO_6
+- VÍNCULO_6
+- CTable
+- CV_iew,CFilter,CTable,CReport,CUdm,CEdl,CCommandBar,CMap,CVba,CGrouping
+- Calibri
+- {5F6AF6DF-B821-42AB-B59F-76461E591709}
+- gbui://mainpage.htm
+- Trabalho concluído, trabalho restante
+- gbui://gbui.xml
+- &Entrada
+- Entry
+- CV_iew
+- Nome da tarefa
+- nício Real
+- érmino Real
+- Nome do recurso
+- Unid. máximas
+- Taxa padrão
+- Taxa h. extra
+- Custo/uso
+- Usage
+- &Linha do Tempo
+- Gantt Chart with Timeline
+- Todas as Tarefas
+- Nenhum grupo
+- Gantt Chart
+- Tarefa
+- Divisão
+- Etapa
+- Resumo
+- Resumo do projeto
+- *Agrupar por resumo
+- *Tarefa acumulada
+- *Divisão acumulada
+- *Andamento acumulado
+- *Etapa acumulada
+- Tarefas externas
+- Etapa externa
+- *Início do Produto
+- *Término do Produto
+- *Duração do Produto
+- *Início da Dependência
+- *Término da Dependência
+- *Duração da Dependência
+- Tarefa Inativa
+- *Divisão Inativa
+- Etapa Inativa
+- Resumo Inativo
+- Tarefa Manual
+- *Divisão Manual
+- *Etapa Manual
+- Somente duração
+- Acúmulo de Resumo Manual
+- *Tarefa Manual (Aviso)
+- *Divisão Manual (Aviso)
+- *Etapa Manual (Aviso)
+- *Acúmulo de Resumo Manual (Aviso)
+- Resumo Manual
+- Somente início
+- !Somente término
+- "*Etapa somente duração
+- $*Etapa somente término
+- %*Tarefa Manual Acumulada
+- &Data limite
+- 'Andamento
+- Timeline
+- &Nenhum grupo
+- <TLViewData><fltSet><ft id="{00000000-0000-0000-0000-000000000000}" uid="4294967295" onTL="0" fmt="1" x="0" y="4294967291" h="20" top="1"/></fltSet><fmtSet><fmt id="0" type="0" clr="FF456287" Lclr="FF67788E" Dclr="FF364D6A" t1="0" t2="1"/><fmt id="1" type="1" clr="FF93ACD1" Lclr="FF67788E" Dclr="FF364D6A" t1="2" t2="3"/><fmt id="2" type="2" clr="FF93ACD1" Lclr="FF67788E" Dclr="FF364D6A" t1="4" t2="5"/><fmt id="3" type="3" clr="FF7F7F7F" Lclr="FF949494" Dclr="FF696969" t1="6" t2="7"/></fmtSet><mlSet><m id="{00000000-0000-0000-0000-000000000000}" uid="4294967295" onTL="0" fmt="2" x="0" y="15" top="0"/></mlSet><options round="1" zoom2Screen="1" minMode="0" timescaleT="8" panZoomT="9" todayT="11" showOverlaps="1" showPanZoom="1" showTS="1" showToday="1" ProjSummFmt="3" dateFormat="255" numTextLines="1" showDates="1"/><tskSet><t id="{00000000-0000-0000-0000-000000000000}" uid="4294967295" onTL="0" fmt="0" ch="4294967295"/></tskSet><txtSet><style id="0" shared="0" type="0" clr="FFFFFFFF" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="1" shared="0" type="1" clr="FFFFFFFF" sz="8" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="2" shared="0" type="2" clr="FF073451" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="3" shared="0" type="3" clr="FF4F81BD" sz="8" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="4" shared="0" type="4" clr="FF073451" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="5" shared="0" type="5" clr="FF4F81BD" sz="8" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="6" shared="0" type="6" clr="FF073451" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="7" shared="0" type="7" clr="FF4F81BD" sz="8" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="8" shared="0" type="8" clr="FF8EA3BD" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="9" shared="0" type="9" clr="FF4F81BD" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="10" shared="0" type="10" clr="FF4F81BD" sz="10" font="Calibri" bold="0" ital="0" und="0" strk="0"/><style id="11" type="10" clr="FFFFA500" bold="1"/></txtSet></TLViewData>
+- &Todos os Recursos
+- Resource Sheet
+- Resource Usage
+- Gantt &com Linha do Tempo
+- &Planilha de recursos
+- Us&o dos Recursos
+- tasks
+- CFilter
+- resources
+- &Todas as Tarefas
+- All Tasks
+- All Resources
+- CReport
+- CGrouping
+- Tabela de referência cruzada
+- CCommandBar
+- No Task Group
+- No Resource Group
+- 14,0,4751,1000
+- CVarMeta
+- 2a400000_ffffffff
+- Props14
+- CompObj
+- SummaryInformation
+- DocumentSummaryInformation
+- :\Users\silvia.brito\Documents\PCR\Cronograma\implantacao PCR - Sem Atividades da Etapa 2 - Versao 3.0.mpp
+- Silvia Maria Mergulhao Soares Brito
+- Paulo
+- &Nenhum gruph
+- &Todas as Ta
+- res o
+- refas
+- Roberto Garcia Anache

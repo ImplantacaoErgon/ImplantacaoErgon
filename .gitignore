@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+backend/uploads/*
+!backend/uploads/.gitkeep
+.env
+
+# build artifact, não precisa versionar (Render builda a partir do código-fonte)
+ergon-pm-deliverable.zip

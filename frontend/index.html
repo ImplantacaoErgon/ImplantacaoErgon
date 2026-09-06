@@ -1,0 +1,2618 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ergon PM — Gestão Técnica da Implantação</title>
+<script>
+  // Restaura o tema (claro/escuro) escolhido pelo usuário ANTES do <style>
+  // ser aplicado, pra não piscar no tema errado (FOUC). É preferência
+  // pessoal, salva só neste navegador (localStorage) — não é um parâmetro
+  // do site (ver Configurações > Parâmetros e a função aplicarTema() mais
+  // abaixo). Ausência de valor ou valor "auto" = segue prefers-color-scheme
+  // do sistema operacional, comportamento padrão de sempre.
+  (function(){
+    try{
+      var tema = localStorage.getItem("ergonTema");
+      if(tema === "light" || tema === "dark") document.documentElement.dataset.theme = tema;
+    }catch(e){}
+  })();
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  [hidden]{display:none!important;}
+
+  :root{
+    --bg:#f5f6f8; --surface:#ffffff; --surface-2:#eef0f3; --border:#dde1e6;
+    --text:#1a2229; --text-muted:#5c6670; --text-faint:#8a939c;
+    --accent:#2f5f8a; --accent-strong:#234968; --accent-soft:#e6edf4;
+    --warn:#a15c0d; --warn-soft:#faecda; --danger:#ab2f2f; --danger-soft:#faeaea;
+    --ok:#1f7a4d; --ok-soft:#e4f3ea;
+    --shadow:0 1px 2px rgba(20,30,35,.07), 0 6px 16px rgba(20,30,35,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1519; --surface:#151c21; --surface-2:#1b2329; --border:#293238;
+      --text:#e7ecef; --text-muted:#9aa7ae; --text-faint:#6f7d85;
+      --accent:#6fa8d8; --accent-strong:#9cc4e8; --accent-soft:#16232f;
+      --warn:#dfa657; --warn-soft:#332a15; --danger:#e2807a; --danger-soft:#361c1b;
+      --ok:#63cb93; --ok-soft:#153627;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.3);
+    }
+  }
+  /* Tema forçado explicitamente pelo usuário (Configurações > Parâmetros >
+     Aparência), independente do que o sistema operacional prefere. Mesmos
+     valores do bloco @media acima — se um mudar, o outro deve acompanhar. */
+  :root[data-theme="dark"]{
+    --bg:#0f1519; --surface:#151c21; --surface-2:#1b2329; --border:#293238;
+    --text:#e7ecef; --text-muted:#9aa7ae; --text-faint:#6f7d85;
+    --accent:#6fa8d8; --accent-strong:#9cc4e8; --accent-soft:#16232f;
+    --warn:#dfa657; --warn-soft:#332a15; --danger:#e2807a; --danger-soft:#361c1b;
+    --ok:#63cb93; --ok-soft:#153627;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;line-height:1.5;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+
+  /* ---- shell ---- */
+  header.topbar{
+    background:var(--surface);border-bottom:1px solid var(--border);
+    padding:12px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+    position:sticky;top:0;z-index:20;
+  }
+  header.topbar h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-.01em;}
+  header.topbar .proj{font-size:12px;color:var(--text-muted);}
+  .topbar-marca{display:flex;flex-direction:column;align-items:flex-start;gap:2px;}
+  .topbar-marca img{max-height:34px;max-width:150px;object-fit:contain;}
+  .topbar-marca .topbar-empresa{font-size:12px;font-weight:600;color:var(--text-muted);}
+  nav.tabs{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap;}
+  nav.tabs button{
+    background:transparent;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;
+    color:var(--text-muted);cursor:pointer;font-family:inherit;
+  }
+  nav.tabs button:hover{background:var(--surface-2);color:var(--text);}
+  nav.tabs button.active{background:var(--accent-soft);color:var(--accent-strong);}
+
+  main{max-width:1400px;margin:0 auto;padding:20px 22px 64px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  h2.view-title{font-size:18px;font-weight:700;margin:0 0 4px;}
+  .view-sub{color:var(--text-muted);font-size:13px;margin-bottom:16px;}
+
+  /* ---- buttons ---- */
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn:hover{background:var(--accent-strong);}
+  .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border);}
+  .btn.secondary:hover{background:var(--surface-2);}
+  .btn.danger{background:var(--danger);}
+  .btn.ghost{background:transparent;color:var(--text-muted);padding:5px 9px;font-size:12.5px;}
+  .btn.ghost:hover{background:var(--surface-2);color:var(--text);}
+  .btn.small{padding:6px 10px;font-size:12.5px;}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;}
+
+  /* ---- kpis ---- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
+  .kpi .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);font-weight:600;}
+  .kpi .value{font-size:24px;font-weight:700;margin-top:4px;font-family:'IBM Plex Mono';}
+  .kpi .value.danger{color:var(--danger);}
+  .kpi .value.ok{color:var(--ok);}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:16px;}
+  .card h3{font-size:13px;font-weight:700;margin:0 0 12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+
+  .grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;}
+  @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
+
+  /* ---- resumo frente bars ---- */
+  .frente-row{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:12.5px;}
+  .frente-row .nome{width:150px;flex-shrink:0;color:var(--text-muted);}
+  .frente-row .bar-track{flex:1;height:8px;background:var(--surface-2);border-radius:5px;overflow:hidden;display:flex;}
+  .frente-row .bar-track div{height:100%;}
+  .frente-row .count{width:70px;text-align:right;color:var(--text-faint);font-family:'IBM Plex Mono';flex-shrink:0;}
+
+  /* ---- filters ---- */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .filters input[type=text], .filters select, .filters input[type=date]{
+    background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;
+  }
+  .filters input[type=text]{min-width:200px;flex:1 1 200px;}
+  .quickperiod{display:flex;gap:4px;}
+  .quickperiod button{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit;cursor:pointer;color:var(--text-muted);}
+  .quickperiod button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* ---- table ---- */
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:auto;box-shadow:var(--shadow);}
+  table{border-collapse:collapse;width:100%;min-width:900px;}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);white-space:nowrap;}
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12.5px;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.clickable{cursor:pointer;}
+  tbody tr.clickable:hover{background:var(--surface-2);}
+  .empty-row td{padding:40px;text-align:center;color:var(--text-faint);}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+
+  /* ---- gantt ---- */
+  .gantt-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:auto;margin-bottom:16px;}
+  .gantt{display:grid;grid-template-columns:280px 1fr;}
+  .gantt-labels{border-right:1px solid var(--border);}
+  .gantt-label-row{height:30px;display:flex;align-items:center;padding:0 10px;font-size:12px;border-bottom:1px solid var(--border);gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .gantt-label-row .wbs{color:var(--text-faint);font-family:'IBM Plex Mono';font-size:11px;}
+  .gantt-chart{position:relative;}
+  .gantt-header{height:22px;position:relative;border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .gantt-header span{position:absolute;top:3px;font-size:10px;color:var(--text-faint);font-family:'IBM Plex Mono';}
+  .gantt-row{height:30px;position:relative;border-bottom:1px solid var(--border);}
+  .gantt-bar{position:absolute;top:6px;height:18px;border-radius:5px;opacity:.85;}
+  .gantt-bar .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.35);border-radius:5px 0 0 5px;}
+  .gantt-bar.critica{outline:2px solid var(--danger);outline-offset:1px;}
+  .gantt-today{position:absolute;top:0;bottom:0;width:1px;background:var(--danger);z-index:5;}
+
+  /* ---- modal ---- */
+  .overlay{position:fixed;inset:0;background:rgba(10,14,17,.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:50;}
+  .overlay[hidden]{display:none;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:720px;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .modal.wide{max-width:1080px;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+  .modal-head h2{font-size:15px;font-weight:700;margin:0;}
+  .modal-tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid var(--border);}
+  .modal-tabs button{background:transparent;border:none;padding:9px 12px;font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;}
+  .modal-tabs button.active{color:var(--accent-strong);border-bottom-color:var(--accent);}
+  .modal-body{padding:18px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;max-height:60vh;overflow:auto;}
+  .modal-body.single-col{display:block;}
+  .modal-body .full{grid-column:1 / -1;}
+  .field label{display:block;font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em;}
+  .field input, .field select, .field textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:7px 9px;font-size:13px;color:var(--text);font-family:inherit;}
+  .field textarea{resize:vertical;min-height:56px;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:2px solid var(--accent);outline-offset:0;}
+  .modal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--border);}
+  .modal-pane{display:none;}
+  .modal-pane.active{display:block;}
+  .list-simple{list-style:none;margin:0;padding:0;}
+  .list-simple li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;gap:10px;}
+  .list-simple li:last-child{border-bottom:none;}
+  .inline-add{display:flex;gap:6px;margin-top:10px;}
+  .inline-add select, .inline-add input{flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:7px 9px;font-size:12.5px;font-family:inherit;}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;z-index:100;box-shadow:var(--shadow);color:#fff;}
+  .confirm-box{padding:20px;text-align:center;}
+  .confirm-box p{margin:0 0 16px;color:var(--text-muted);font-size:13.5px;}
+  .confirm-actions{display:flex;gap:10px;justify-content:center;}
+  .muted{color:var(--text-faint);font-size:12px;}
+
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);margin:0 auto;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .markdown-render{font-size:13.5px;line-height:1.65;}
+  .markdown-render h2{font-size:15px;margin:18px 0 8px;color:var(--accent-strong);}
+  .markdown-render h2:first-child{margin-top:0;}
+  .markdown-render p{margin:0 0 10px;}
+  .markdown-render ul{margin:0 0 12px;padding-left:20px;}
+  .markdown-render li{margin-bottom:4px;}
+  #overlay-relatorio-executivo .modal-body{max-height:65vh;}
+</style>
+</head>
+<body>
+
+<!-- ================= TELA DE LOGIN / CADASTRO ================= -->
+<div id="auth-screen" hidden style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div class="card" style="width:100%;max-width:420px;">
+    <h2 class="view-title" style="margin-bottom:2px;">Ergon PM</h2>
+    <div class="view-sub">Gestão técnica da implantação</div>
+
+    <div id="auth-pane-login">
+      <div class="field full" style="margin-bottom:10px;"><label>E-mail</label><input id="login-email" type="email" autocomplete="username"></div>
+      <div class="field full" style="margin-bottom:6px;"><label>Senha</label><input id="login-senha" type="password" autocomplete="current-password"></div>
+      <div id="login-erro" class="muted" style="color:var(--danger);margin-bottom:10px;" hidden></div>
+      <button class="btn" id="btn-login" style="width:100%;justify-content:center;margin-bottom:10px;">Entrar</button>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+        <a href="#" id="link-esqueci-senha">Esqueci minha senha</a>
+        <a href="#" id="link-ir-cadastro">Primeiro acesso / Criar cadastro</a>
+      </div>
+    </div>
+
+    <div id="auth-pane-esqueci" hidden>
+      <p class="muted" style="margin-top:0;">Informe o e-mail cadastrado — vamos gerar uma nova senha e enviar para ele.</p>
+      <div class="field full" style="margin-bottom:10px;"><label>E-mail</label><input id="esqueci-email" type="email" autocomplete="username"></div>
+      <div id="esqueci-erro" class="muted" style="color:var(--danger);margin-bottom:10px;" hidden></div>
+      <div id="esqueci-sucesso" class="muted" style="color:var(--ok);margin-bottom:10px;" hidden></div>
+      <button class="btn" id="btn-esqueci" style="width:100%;justify-content:center;margin-bottom:10px;">Enviar nova senha por e-mail</button>
+      <div style="text-align:center;font-size:12.5px;"><a href="#" id="link-voltar-login-1">Voltar para o login</a></div>
+    </div>
+
+    <div id="auth-pane-cadastro" hidden>
+      <div class="field full"><label>Nome *</label><input id="cad-nome" type="text"></div>
+      <div class="field full"><label>E-mail *</label><input id="cad-email" type="email" autocomplete="username"></div>
+      <div class="field full"><label>Telefone *</label><input id="cad-telefone" type="text" placeholder="(00) 00000-0000"></div>
+      <div class="field full"><label>Empresa *</label><input id="cad-empresa" type="text"></div>
+      <div class="field full"><label>Cargo *</label><input id="cad-cargo" type="text"></div>
+      <div class="field full"><label>Senha *</label><input id="cad-senha" type="password" autocomplete="new-password"></div>
+      <div class="field full"><label>Confirmar senha *</label><input id="cad-senha-confirma" type="password" autocomplete="new-password"></div>
+      <div class="field full" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="cad-recebe-relatorio" style="width:auto;" checked>
+        <label for="cad-recebe-relatorio" style="margin:0;text-transform:none;font-weight:400;font-size:12.5px;">Quero receber os Relatórios Executivos gerados no Dashboard</label>
+      </div>
+      <div class="field full" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="cad-recebe-whatsapp" style="width:auto;" checked>
+        <label for="cad-recebe-whatsapp" style="margin:0;text-transform:none;font-weight:400;font-size:12.5px;">Quero receber notificações por WhatsApp neste telefone</label>
+      </div>
+      <div id="cad-erro" class="muted" style="color:var(--danger);margin:10px 0;" hidden></div>
+      <button class="btn" id="btn-cadastrar" style="width:100%;justify-content:center;margin:6px 0 10px;">Criar cadastro e entrar</button>
+      <div style="text-align:center;font-size:12.5px;"><a href="#" id="link-voltar-login-2">Já tenho cadastro — voltar para o login</a></div>
+    </div>
+  </div>
+</div>
+
+<header class="topbar" id="app-header" hidden>
+  <div class="topbar-marca" id="topbar-marca">
+    <img id="topbar-logo" src="" alt="Logo da empresa" hidden>
+    <div class="topbar-empresa" id="topbar-empresa" hidden></div>
+  </div>
+  <div>
+    <h1>Ergon PM</h1>
+    <div class="proj" id="proj-label">Carregando projeto…</div>
+  </div>
+  <button class="btn ghost small" id="btn-edit-projeto" style="display:none;margin-left:auto;">⚙ Dados do projeto</button>
+  <nav class="tabs" id="tabs">
+    <button data-view="dashboard" class="active">Dashboard</button>
+    <button data-view="cronograma">Cronograma</button>
+    <button data-view="critico">Caminho Crítico</button>
+    <button data-view="requisitos">Requisitos TR</button>
+    <button data-view="riscos">Riscos &amp; Marcos</button>
+    <button data-view="configuracoes">⚙ Configurações</button>
+  </nav>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:12px;">
+    <button class="btn ghost small" id="user-chip-nome" title="Alterar minha senha"></button>
+    <button class="btn ghost small" id="btn-logout" title="Sair">Sair</button>
+  </div>
+</header>
+
+<main id="app-main" hidden>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="view active" id="view-dashboard">
+    <h2 class="view-title">Visão geral</h2>
+    <div class="view-sub">Situação consolidada do projeto de implantação.</div>
+    <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button class="btn secondary" id="btn-refresh-dashboard">↻ Atualizar</button>
+      <span class="muted" id="dash-refresh-status"></span>
+      <button class="btn" id="btn-relatorio-executivo" style="margin-left:auto;" title="Gera um diagnóstico do projeto usando IA a partir dos dados atuais do cronograma">🧠 Gerar Relatório Executivo (IA)</button>
+    </div>
+    <div class="kpis" id="dash-kpis"></div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Progresso por frente de trabalho</h3>
+        <div id="dash-frentes"></div>
+      </div>
+      <div class="card">
+        <h3>Próximos marcos</h3>
+        <ul class="list-simple" id="dash-marcos"></ul>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Atividades atrasadas</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Fim previsto</th><th>Dias de atraso</th><th>Responsável</th></tr></thead>
+        <tbody id="dash-atrasadas"></tbody>
+      </table></div>
+    </div>
+    <div class="card" id="dash-alertas-card" hidden>
+      <h3>⚠ Atenção — Urgente/Alta sem responsável ou sem prazo</h3>
+      <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm um responsável Techne definido ou não têm data fim prevista — risco de escapar do radar.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Prioridade</th><th>Frente</th><th>O que falta</th></tr></thead>
+        <tbody id="dash-alertas"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h3>Horas por responsável (previsto × realizado)</h3>
+      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada pessoa aparece como responsável (Techne ou cliente). A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Responsável</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
+        <tbody id="dash-horas-resp"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ CRONOGRAMA ============ -->
+  <section class="view" id="view-cronograma">
+    <h2 class="view-title">Cronograma</h2>
+    <div class="view-sub">Atividades planejadas — filtre por período, frente, etapa ou responsável.</div>
+
+    <div class="filters">
+      <div class="quickperiod" id="quickperiod">
+        <button data-range="semana">Esta semana</button>
+        <button data-range="mes">Este mês</button>
+        <button data-range="trimestre">Este trimestre</button>
+        <button data-range="todas" class="active">Todas</button>
+      </div>
+      <input type="text" id="f-search" placeholder="Buscar por código, nome, descrição…">
+      <select id="f-etapa"><option value="">Etapa (todas)</option></select>
+      <select id="f-frente"><option value="">Frente (todas)</option></select>
+      <select id="f-status"><option value="">Status (todos)</option></select>
+      <select id="f-responsavel"><option value="">Responsável Techne (todos)</option></select>
+      <select id="f-responsavel-cliente"><option value="">Responsável cliente (todos)</option></select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-muted);">
+        <input type="checkbox" id="f-atrasadas"> só atrasadas
+      </label>
+      <button class="btn secondary small" id="btn-clear-filters">Limpar</button>
+      <button class="btn secondary small" id="btn-import-cronograma" style="margin-left:auto;">Importar Cronograma (Excel/CSV)</button>
+      <button class="btn danger small" id="btn-remover-cronograma" title="Apaga todas as atividades e marcos deste projeto">Remover cronograma inteiro</button>
+      <button class="btn small" id="btn-new-atividade">+ Nova atividade</button>
+    </div>
+
+    <div class="gantt-wrap"><div id="gantt"></div></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Código</th><th>Atividade</th><th>Etapa/Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>%</th><th>Horas (prev./real.)</th><th>Responsável Techne / Cliente</th><th>Crítica</th>
+        </tr></thead>
+        <tbody id="atividades-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ CAMINHO CRÍTICO ============ -->
+  <section class="view" id="view-critico">
+    <h2 class="view-title">Caminho crítico</h2>
+    <div class="view-sub">
+      Calculado pelo método CPM a partir das durações e dependências cadastradas — mostra a sequência que define a duração mínima do projeto.
+      Datas aqui são teóricas (início do projeto + dependências); as datas operacionais do dia a dia continuam sendo as previstas em cada atividade.
+    </div>
+    <div style="margin-bottom:14px;display:flex;gap:10px;align-items:center;">
+      <button class="btn" id="btn-recalcular-cpm">Recalcular caminho crítico</button>
+      <span class="muted" id="cpm-status"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Início (dia)</th><th>Fim (dia)</th><th>Data início</th><th>Data fim</th><th>Folga</th></tr></thead>
+        <tbody id="critico-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ REQUISITOS ============ -->
+  <section class="view" id="view-requisitos">
+    <h2 class="view-title">Requisitos do Termo de Referência</h2>
+    <div class="view-sub">Classificação, tipo de atendimento e status de cada item do edital.</div>
+    <div class="kpis" id="req-kpis"></div>
+    <div class="filters">
+      <input type="text" id="rf-search" placeholder="Buscar por código, título, descrição…">
+      <select id="rf-tipo"><option value="">Tipo (todos)</option><option>Funcional</option><option>Não Funcional</option></select>
+      <select id="rf-frente"><option value="">Frente (todas)</option></select>
+      <select id="rf-classificacao"><option value="">Classificação (todas)</option></select>
+      <select id="rf-atendimento"><option value="">Atendimento (todos)</option></select>
+      <select id="rf-status"><option value="">Status (todos)</option></select>
+      <a class="btn ghost small" id="link-modelo-csv" download="modelo_requisitos.csv" style="margin-left:auto;">Baixar modelo CSV</a>
+      <input type="file" id="rf-csv-file" accept=".csv" hidden>
+      <button class="btn secondary small" id="btn-import-csv">Importar CSV</button>
+      <button class="btn secondary small" id="btn-import-tr">Importar do TR (documento)</button>
+      <button class="btn small" id="btn-new-requisito">+ Novo requisito</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Código</th><th>Tipo</th><th>Título/Frente</th><th>Classificação</th><th>Atendimento</th><th>Status</th><th>Responsável</th></tr></thead>
+        <tbody id="requisitos-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ RISCOS & MARCOS ============ -->
+  <section class="view" id="view-riscos">
+    <h2 class="view-title">Riscos &amp; Marcos</h2>
+    <div class="view-sub">Mapa de riscos e marcos contratuais do projeto.</div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Riscos</h3>
+        <ul class="list-simple" id="riscos-list"></ul>
+      </div>
+      <div class="card">
+        <h3>Marcos</h3>
+        <ul class="list-simple" id="marcos-list"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONFIGURAÇÕES ============ -->
+  <section class="view" id="view-configuracoes">
+    <h2 class="view-title">Configurações</h2>
+    <div class="view-sub">Cadastros base do projeto: responsáveis, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
+    <div class="modal-tabs" id="cfg-tabs" style="border:none;padding:0;margin-bottom:16px;">
+      <button data-cfg="responsaveis" class="active">Responsáveis</button>
+      <button data-cfg="etapas">Etapas</button>
+      <button data-cfg="frentes">Frentes de Trabalho</button>
+      <button data-cfg="tipos">Tipos de Atividade Elementar</button>
+      <button data-cfg="usuarios">Usuários</button>
+      <button data-cfg="parametros">Parâmetros</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;" id="cfg-add-wrap">
+      <button class="btn small" id="cfg-add">+ Novo</button>
+    </div>
+    <div class="table-wrap" id="cfg-table-wrap">
+      <table>
+        <thead id="cfg-thead"></thead>
+        <tbody id="cfg-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Parâmetros do site: não é uma lista de registros como as outras
+         abas (é um formulário único), por isso não usa CONFIG_ENTIDADES /
+         o table-wrap acima — ver renderParametrosPane() no JS. -->
+    <div id="cfg-parametros-pane" hidden style="max-width:640px;">
+      <div class="card">
+        <h3>Identidade visual</h3>
+        <div class="view-sub" style="margin-top:-6px;">Logo e nome da empresa exibidos no topo do sistema, para todos os usuários.</div>
+        <div style="display:flex;align-items:center;gap:16px;margin:14px 0;">
+          <div style="width:76px;height:76px;flex:none;border:1px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--surface-2);">
+            <img id="param-logo-preview" src="" alt="Logo atual" hidden style="max-width:100%;max-height:100%;object-fit:contain;">
+            <span id="param-logo-placeholder" class="muted">Sem logo</span>
+          </div>
+          <div>
+            <input type="file" id="param-logo-file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" style="display:block;margin-bottom:6px;">
+            <span class="muted">PNG, JPG, SVG, WEBP ou GIF — até 3 MB.</span>
+          </div>
+        </div>
+        <div class="field full">
+          <label>Nome da empresa *</label>
+          <input id="param-nome-empresa" type="text" placeholder="Ex: Techne Sistemas">
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+          <button class="btn" id="param-salvar">Salvar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Aparência</h3>
+        <div class="view-sub" style="margin-top:-6px;">Cor da página — vale só para você, neste navegador (não afeta os demais usuários).</div>
+        <div class="field full">
+          <label>Tema</label>
+          <select id="param-tema">
+            <option value="auto">Automático (segue o dispositivo)</option>
+            <option value="light">Claro</option>
+            <option value="dark">Escuro</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ================= MODAL: CONFIGURAÇÕES (genérico) ================= -->
+<div class="overlay" id="overlay-config" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2 id="cfg-modal-title">Novo</h2><button class="btn ghost" id="cfg-close">✕</button></div>
+    <div class="modal-body" id="cfg-fields"></div>
+    <div class="modal-foot">
+      <button class="btn danger" id="cfg-delete" style="visibility:hidden;">Excluir</button>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="cfg-cancel">Cancelar</button><button class="btn" id="cfg-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: ATIVIDADE ================= -->
+<div class="overlay" id="overlay-atividade" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2 id="at-modal-title">Nova atividade</h2><button class="btn ghost" id="at-close">✕</button></div>
+    <div class="modal-tabs">
+      <button data-pane="detalhes" class="active">Detalhes</button>
+      <button data-pane="relatos">Relatos</button>
+      <button data-pane="dependencias">Dependências</button>
+      <button data-pane="requisitos">Requisitos vinculados</button>
+      <button data-pane="anexos">Anexos</button>
+    </div>
+
+    <div class="modal-pane active" data-pane="detalhes">
+      <div class="modal-body">
+        <div class="field"><label>Etapa</label><select id="at-etapa"></select></div>
+        <div class="field"><label>Frente de trabalho</label><select id="at-frente"></select></div>
+
+        <div class="field"><label>Código WBS</label><input id="at-codigo" type="text" placeholder="1.4"></div>
+        <div class="field"><label>Prioridade</label><select id="at-prioridade"><option>Urgente</option><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
+        <div class="field full"><label>Nome</label><input id="at-nome" type="text" placeholder="Ex: Parametrização de Vagas Numeradas"></div>
+        <div class="field full"><label>Descrição</label><textarea id="at-descricao"></textarea></div>
+
+        <div class="field"><label>Tipo de atividade elementar</label><select id="at-tipo"></select></div>
+        <div class="field"><label>Item do TR (opcional)</label><select id="at-requisito-tr"></select></div>
+        <div class="field"><label>Responsável Techne</label><select id="at-responsavel-techne"></select></div>
+        <div class="field"><label>Responsável cliente</label><select id="at-responsavel-cliente"></select></div>
+
+        <div class="field"><label>Status</label>
+          <select id="at-status"><option>Não iniciada</option><option>Em andamento</option><option>Bloqueada</option><option>Concluída</option><option>Cancelada</option></select>
+        </div>
+        <div class="field"><label>% concluído</label><input id="at-percentual" type="number" min="0" max="100"></div>
+        <div class="field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="at-master" style="width:auto;">
+          <label for="at-master" style="margin:0;" title="Entregável mestre do projeto (ex: Folha definitiva) — usado pelo Relatório Executivo (IA) do Dashboard para calcular previsão de conclusão.">
+            ★ Atividade master (entregável mestre do projeto — usada na previsão do Relatório Executivo)
+          </label>
+        </div>
+
+        <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço"></div>
+        <div class="field"><label>Horas realizadas</label><input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas"></div>
+        <div class="field"><label>Início previsto</label><input id="at-dtini-prev" type="date"></div>
+        <div class="field"><label>Fim previsto</label><input id="at-dtfim-prev" type="date"></div>
+        <div class="field"><label>Início real</label><input id="at-dtini-real" type="date"></div>
+        <div class="field"><label>Fim real</label><input id="at-dtfim-real" type="date"></div>
+
+        <div class="field full"><label>Observações</label><textarea id="at-observacoes"></textarea></div>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="relatos">
+      <div class="modal-body single-col">
+        <p class="muted" id="at-relatos-hint" style="margin-bottom:10px;"></p>
+        <ul class="list-simple" id="at-relatos-list"></ul>
+        <div class="field full" style="margin-top:14px;"><label>Novo relato</label><textarea id="at-relato-texto" placeholder="O que foi feito, discutido ou observado nesta atividade..."></textarea></div>
+        <div class="field full" style="display:flex;align-items:center;gap:8px;margin:2px 0 8px;">
+          <input type="checkbox" id="at-relato-pendencia" style="width:auto;">
+          <label for="at-relato-pendencia" style="margin:0;">É uma pendência (impede o andamento da atividade)</label>
+        </div>
+        <div id="at-relato-pendencia-campos" style="display:none;" class="modal-body" >
+          <div class="field"><label>Responsável pela pendência</label><select id="at-relato-pend-responsavel"></select></div>
+          <div class="field"></div>
+          <div class="field"><label>Prazo possível</label><input id="at-relato-pend-prazo" type="date"></div>
+          <div class="field"><label>Data limite</label><input id="at-relato-pend-limite" type="date"></div>
+        </div>
+        <div style="text-align:right;"><button class="btn small" id="at-relato-add">Adicionar relato</button></div>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="dependencias">
+      <div class="modal-body single-col">
+        <ul class="list-simple" id="at-deps-list"></ul>
+        <div class="inline-add">
+          <select id="at-dep-predecessora"></select>
+          <select id="at-dep-tipo"><option>FS</option><option>SS</option><option>FF</option><option>SF</option></select>
+          <input id="at-dep-lag" type="number" placeholder="lag (h)" style="max-width:100px;">
+          <button class="btn small" id="at-dep-add">Adicionar</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Esta atividade só pode começar depois que suas predecessoras (acima) permitirem, conforme o tipo de dependência.</p>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="requisitos">
+      <div class="modal-body single-col">
+        <ul class="list-simple" id="at-reqs-list"></ul>
+        <div class="inline-add">
+          <select id="at-req-add-select"></select>
+          <button class="btn small" id="at-req-add">Vincular</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="anexos">
+      <div class="modal-body single-col">
+        <ul class="list-simple" id="at-anexos-list"></ul>
+        <div class="inline-add">
+          <input type="file" id="at-anexo-file" style="flex:1;">
+          <button class="btn small" id="at-anexo-add">Enviar</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Aceita xls, xlsx, csv, txt, pdf e outros formatos.</p>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn danger" id="at-delete" style="visibility:hidden;">Excluir atividade</button>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="at-cancel">Cancelar</button><button class="btn" id="at-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: REQUISITO ================= -->
+<div class="overlay" id="overlay-requisito" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2 id="req-modal-title">Novo requisito</h2><button class="btn ghost" id="req-close">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Código</label><input id="req-codigo" type="text" placeholder="TR-001"></div>
+      <div class="field"><label>Tipo de requisito</label><select id="req-tipo"><option>Funcional</option><option>Não Funcional</option></select></div>
+      <div class="field full"><label>Título</label><input id="req-titulo" type="text"></div>
+      <div class="field full"><label>Descrição (texto do edital)</label><textarea id="req-descricao"></textarea></div>
+      <div class="field"><label>Módulo de origem (do TR)</label><input id="req-modulo" type="text" placeholder="Ex: 4. Gestão da Folha de Pagamento"></div>
+      <div class="field"><label>Prioridade</label><select id="req-prioridade"><option>Urgente</option><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
+      <div class="field"><label>Frente de trabalho</label><select id="req-frente"></select></div>
+      <div class="field"><label>Responsável</label><select id="req-responsavel"></select></div>
+      <div class="field"><label>Classificação</label>
+        <select id="req-classificacao"><option>Essencial/Imediato</option><option>Obrigatório</option><option>Desejável</option><option>Customizado Curto</option><option>Customizado Médio</option><option>Customizado Longo</option></select>
+      </div>
+      <div class="field"><label>Atendimento</label>
+        <select id="req-atendimento"><option>A analisar</option><option>Nativo</option><option>Parcial</option><option>Customizado</option><option>Não atende</option></select>
+      </div>
+      <div class="field"><label>Status</label>
+        <select id="req-status"><option>Não iniciado</option><option>Em levantamento</option><option>Especificado</option><option>Em desenvolvimento</option><option>Em homologação</option><option>Entregue</option><option>Aprovado</option><option>Rejeitado</option></select>
+      </div>
+      <div class="field"><label>Cobrança</label><select id="req-cobranca"><option>N/A</option><option>Sim</option><option>Não</option></select></div>
+      <div class="field"><label>Data de levantamento</label><input id="req-data" type="date"></div>
+      <div class="field full"><label>Observações</label><textarea id="req-observacoes"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <span></span>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="req-cancel">Cancelar</button><button class="btn" id="req-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: IMPORTAR REQUISITOS DO DOCUMENTO DO TR ================= -->
+<div class="overlay" id="overlay-importar-tr" hidden>
+  <div class="modal wide">
+    <div class="modal-head"><h2>Importar requisitos do documento do TR</h2><button class="btn ghost" id="tr-close">✕</button></div>
+    <div class="modal-body single-col" id="tr-step-upload">
+      <div class="field full">
+        <label>Documento do Termo de Referência (Anexo com o catálogo de funcionalidades e requisitos técnicos)</label>
+        <input id="tr-file" type="file" accept=".html,.htm,.txt,.docx,.pdf">
+        <p class="muted" style="margin-top:8px;">Formatos aceitos: HTML, TXT, DOCX ou PDF. O sistema reconhece automaticamente os itens funcionais (catálogo de funcionalidades) e não funcionais (anexo de requisitos técnicos) do documento — nenhum requisito é gravado antes de você conferir e confirmar a lista abaixo. Todos os itens entram com status "Não iniciado".</p>
+      </div>
+    </div>
+    <div class="modal-body single-col" id="tr-step-preview" hidden>
+      <div id="tr-avisos"></div>
+      <div class="kpis" id="tr-resumo" style="margin-bottom:12px;"></div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><input type="checkbox" id="tr-check-all" checked> Selecionar todos</label>
+        <input type="text" id="tr-preview-search" placeholder="Buscar por código, título, descrição…" style="flex:1;min-width:180px;">
+        <select id="tr-preview-tipo"><option value="">Tipo (todos)</option><option>Funcional</option><option>Não Funcional</option></select>
+      </div>
+      <div class="table-wrap" style="max-height:42vh;">
+        <table>
+          <thead><tr><th style="width:28px;"></th><th>Código</th><th>Tipo</th><th>Módulo de origem</th><th>Título / descrição</th></tr></thead>
+          <tbody id="tr-preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="tr-foot-hint" class="muted"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="tr-cancel">Cancelar</button>
+        <button class="btn" id="tr-analisar">Analisar documento</button>
+        <button class="btn" id="tr-confirmar" hidden>Confirmar importação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: IMPORTAR CRONOGRAMA (Excel/CSV) ================= -->
+<div class="overlay" id="overlay-importar-cronograma" hidden>
+  <div class="modal wide">
+    <div class="modal-head"><h2>Importar Cronograma (Excel/CSV)</h2><button class="btn ghost" id="cr-close">✕</button></div>
+    <div class="modal-body single-col" id="cr-step-upload">
+      <div class="field full">
+        <label>Planilha do cronograma (exportação do MS Project em .xlsx, ou .csv com as mesmas colunas)</label>
+        <input id="cr-file" type="file" accept=".xlsx,.xlsm,.csv">
+        <p class="muted" style="margin-top:8px;">
+          Colunas esperadas: EDT, Id, Nome da tarefa, Início, Término, Duração, % concluída, Predecessoras,
+          Nomes dos recursos (a ordem não importa, os nomes do cabeçalho é que precisam bater). A importação
+          sempre atualiza o projeto atual — atividades e marcos já cadastrados são casados com a linha
+          correspondente da planilha (pelo Id da tarefa, ou pelo código WBS se ainda não tiverem esse Id
+          guardado) e atualizados em vez de duplicados; campos preenchidos manualmente no sistema (responsável,
+          tipo de atividade, status "Bloqueada"/"Cancelada", observações, item do TR) não são sobrescritos.
+        </p>
+      </div>
+    </div>
+    <div class="modal-body single-col" id="cr-step-preview" hidden>
+      <div id="cr-avisos"></div>
+      <div class="kpis" id="cr-resumo" style="margin-bottom:14px;"></div>
+
+      <h3 style="margin:0 0 6px;font-size:13.5px;">Etapas encontradas no WBS</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:12px;">Para cada grupo abaixo, use uma Etapa já cadastrada ou deixe "Criar nova" com o nome sugerido (editável).</p>
+      <div class="table-wrap" style="max-height:22vh;margin-bottom:16px;">
+        <table>
+          <thead><tr><th>Grupo no WBS</th><th>Atividades</th><th>Etapa de destino</th><th>Nome (se nova)</th></tr></thead>
+          <tbody id="cr-grupos-etapa-tbody"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin:0 0 6px;font-size:13.5px;">Frentes de Trabalho encontradas no WBS</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:12px;">Mesma ideia: use uma Frente já cadastrada ou crie uma nova com o nome sugerido.</p>
+      <div class="table-wrap" style="max-height:26vh;">
+        <table>
+          <thead><tr><th>Grupo no WBS</th><th>Atividades</th><th>Frente de destino</th><th>Nome (se nova)</th></tr></thead>
+          <tbody id="cr-grupos-frente-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="cr-foot-hint" class="muted"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="cr-cancel">Cancelar</button>
+        <button class="btn" id="cr-analisar">Analisar planilha</button>
+        <button class="btn" id="cr-confirmar" hidden>Confirmar importação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: REMOVER CRONOGRAMA INTEIRO ================= -->
+<div class="overlay" id="overlay-remover-cronograma" hidden>
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head"><h2 style="color:var(--danger);">⚠ Remover cronograma inteiro</h2><button class="btn ghost" id="rc-close">✕</button></div>
+    <div class="modal-body single-col">
+      <p>Isso vai apagar <strong>permanentemente</strong>, do projeto <strong id="rc-nome-projeto"></strong>:</p>
+      <ul id="rc-resumo" style="margin:0 0 14px;padding-left:20px;line-height:1.7;"></ul>
+      <p class="muted" style="margin-bottom:14px;">Etapas, Frentes, Requisitos do TR e as configurações do projeto NÃO são afetados — só o cronograma (atividades e marcos). Não existe desfazer.</p>
+      <div class="field full">
+        <label>Para confirmar, digite o nome do projeto exatamente como mostrado acima:</label>
+        <input type="text" id="rc-confirma-nome" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="rc-cancel">Cancelar</button>
+        <button class="btn danger" id="rc-confirmar" disabled>Remover cronograma inteiro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: RELATÓRIO EXECUTIVO (IA) ================= -->
+<div class="overlay" id="overlay-relatorio-executivo" hidden>
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-head">
+      <h2>🧠 Relatório Executivo</h2>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <select id="re-historico" style="max-width:260px;" title="Relatórios gerados anteriormente"></select>
+        <button class="btn ghost" id="re-close">✕</button>
+      </div>
+    </div>
+    <div class="modal-body single-col" id="re-body">
+      <div id="re-intro">
+        <p>Gera um diagnóstico do projeto usando IA (Anthropic Claude), a partir dos números atuais do cronograma:
+        progresso por frente, atividades atrasadas, bloqueios, riscos abertos e uma previsão de conclusão da(s)
+        atividade(s) marcada(s) como <strong>★ atividade master</strong> (ex: Folha definitiva).</p>
+        <p class="muted" style="margin-top:8px;">Os dados do projeto (nomes de atividades, prazos, status, nomes de
+        responsáveis) são enviados à API da Anthropic para gerar o texto — não é dado de folha de pagamento real.
+        A geração pode levar de 15 a 40 segundos.</p>
+      </div>
+      <div id="re-loading" hidden style="text-align:center;padding:30px 0;">
+        <div class="spinner"></div>
+        <p class="muted" style="margin-top:12px;">Coletando dados do cronograma e gerando o diagnóstico…</p>
+      </div>
+      <div id="re-erro" class="muted" style="color:var(--danger);" hidden></div>
+      <div id="re-conteudo" hidden>
+        <div class="muted" id="re-meta" style="margin-bottom:10px;font-size:12px;"></div>
+        <div id="re-texto" class="markdown-render"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="muted" id="re-master-aviso"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" id="re-baixar-pdf" hidden>⬇ Baixar PDF</button>
+        <button class="btn" id="re-gerar">Gerar relatório</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: PROJETO ================= -->
+<div class="overlay" id="overlay-projeto" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2 id="proj-modal-title">Cadastro do projeto</h2><button class="btn ghost" id="proj-close" style="visibility:hidden;">✕</button></div>
+    <div class="modal-tabs">
+      <button data-pane="detalhes" class="active">Detalhes</button>
+      <button data-pane="anexos" id="proj-tab-anexos" style="opacity:.5;">Anexos</button>
+    </div>
+
+    <div class="modal-pane active" data-pane="detalhes">
+      <div class="modal-body">
+        <div class="field"><label>Sigla do projeto</label><input id="proj-sigla" type="text" placeholder="Ex: ERGON-PGFN"></div>
+        <div class="field"><label>Prazo total (meses)</label><input id="proj-prazo-meses" type="number" step="0.5" min="0"></div>
+        <div class="field full"><label>Nome do projeto *</label><input id="proj-nome" type="text" placeholder="Ex: Implantação do Sistema Ergon"></div>
+        <div class="field full"><label>Instituição *</label><input id="proj-instituicao" type="text" placeholder="Nome do órgão/cliente"></div>
+        <div class="field full"><label>Descrição</label><textarea id="proj-descricao"></textarea></div>
+
+        <div class="field"><label>Fiscal do projeto</label><input id="proj-fiscal" type="text"></div>
+        <div class="field"><label>Gestor do projeto</label><input id="proj-gestor" type="text"></div>
+        <div class="field"><label>Gerente de projeto do cliente</label><input id="proj-gerente-cliente" type="text"></div>
+        <div class="field"><label>Gerente de projeto da Techne</label><input id="proj-gerente-techne" type="text"></div>
+        <div class="field full" style="max-width:calc(50% - 7px);"><label>Líder de projeto da Techne</label><input id="proj-lider-techne" type="text"></div>
+
+        <div class="field"><label>Data de abertura do projeto</label><input id="proj-data-abertura" type="date"></div>
+        <div class="field"><label>Jornada padrão (h/dia útil)</label><input id="proj-horas-dia" type="number" step="0.5" min="1"></div>
+        <div class="field"><label>Início previsto</label><input id="proj-data-inicio" type="date"></div>
+        <div class="field"><label>Início real</label><input id="proj-data-inicio-real" type="date"></div>
+        <div class="field"><label>Fim previsto</label><input id="proj-data-fim" type="date"></div>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="anexos">
+      <div class="modal-body single-col">
+        <ul class="list-simple" id="proj-anexos-list"></ul>
+        <div class="inline-add">
+          <input type="file" id="proj-anexo-file" style="flex:1;">
+          <button class="btn small" id="proj-anexo-add">Enviar</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Aceita xls, xlsx, csv, txt, pdf e outros formatos — ex: o próprio Termo de Referência, contrato, etc.</p>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <span class="muted" id="proj-modal-hint"></span>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="proj-cancel" style="visibility:hidden;">Cancelar</button><button class="btn" id="proj-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: ALTERAR MINHA SENHA ================= -->
+<div class="overlay" id="overlay-trocar-senha" hidden>
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head"><h2>Alterar minha senha</h2><button class="btn ghost" id="ts-close">✕</button></div>
+    <div class="modal-body single-col">
+      <div class="field full"><label>Senha atual</label><input id="ts-senha-atual" type="password" autocomplete="current-password"></div>
+      <div class="field full"><label>Nova senha</label><input id="ts-senha-nova" type="password" autocomplete="new-password"></div>
+      <div class="field full"><label>Confirmar nova senha</label><input id="ts-senha-nova-confirma" type="password" autocomplete="new-password"></div>
+      <div id="ts-erro" class="muted" style="color:var(--danger);" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <span></span>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="ts-cancel">Cancelar</button><button class="btn" id="ts-salvar">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-confirm" hidden>
+  <div class="modal" style="max-width:380px;">
+    <div class="confirm-box">
+      <p id="confirm-text"></p>
+      <div class="confirm-actions"><button class="btn secondary" id="confirm-cancel">Cancelar</button><button class="btn danger" id="confirm-ok">Confirmar</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const API = "/api";
+
+const STATUS_COLOR = {"Não iniciada":"faint","Em andamento":"accent","Bloqueada":"warn","Concluída":"ok","Cancelada":"danger",
+  "Não iniciado":"faint","Em levantamento":"warn","Especificado":"accent","Em desenvolvimento":"accent","Em homologação":"warn","Entregue":"ok","Aprovado":"ok","Rejeitado":"danger"};
+const ATENDIMENTO_COLOR = {"Nativo":"ok","Parcial":"warn","Customizado":"accent","Não atende":"danger","A analisar":"faint"};
+const COLOR_VAR = {ok:"var(--ok)",warn:"var(--warn)",accent:"var(--accent)",danger:"var(--danger)",faint:"var(--text-faint)"};
+const SOFT_VAR = {ok:"var(--ok-soft)",warn:"var(--warn-soft)",accent:"var(--accent-soft)",danger:"var(--danger-soft)",faint:"var(--surface-2)"};
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); if(isNaN(d)) return "—"; return d.toLocaleDateString('pt-BR'); }
+function fmtDateTime(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return "—"; return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+function pill(text,kind){ return `<span class="pill" style="color:${COLOR_VAR[kind]||COLOR_VAR.faint};background:${SOFT_VAR[kind]||SOFT_VAR.faint};"><span class="dot" style="background:${COLOR_VAR[kind]||COLOR_VAR.faint};"></span>${esc(text)}</span>`; }
+function toast(msg, isErr){
+  const el=document.createElement("div"); el.className="toast"; el.textContent=msg;
+  el.style.background = isErr ? "var(--danger)" : "var(--ok)";
+  document.body.appendChild(el); setTimeout(()=>el.remove(), 3200);
+}
+// api(): usada só DEPOIS de autenticado. Um 401 aqui significa que a sessão
+// caiu (expirou, foi desativada em outra aba etc.) — não que o usuário digitou
+// a senha errada (isso é tratado à parte, em chamarAuthApi(), na tela de
+// login/cadastro, que nunca passa por aqui). Também manda X-Usuario com o
+// nome de quem está logado — consumido pelo backend para preencher
+// alterado_por no histórico de status da atividade (ver main.py/schema.sql).
+let sessaoExpiradaAvisada = false;
+function nomeParaHeaderHttp(nome){
+  // Cabeçalhos HTTP só aceitam código de 0x00-0xFF (isomorphic encode do
+  // fetch()) — um caractere fora da faixa Latin-1 (emoji etc.) faria o
+  // fetch() lançar exceção ao montar o header e quebrar a chamada inteira.
+  // Acentos do português (á, ç, ã, é...) estão todos dentro dessa faixa e
+  // continuam corretos ponta a ponta (navegador e Werkzeug tratam
+  // cabeçalhos como Latin-1); só o raro caractere fora disso é substituído.
+  return String(nome||"").replace(/[^\x00-\xFF]/g, "?");
+}
+async function api(path, opts={}){
+  const headers = {};
+  if(opts.body && !(opts.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if(USUARIO_LOGADO && USUARIO_LOGADO.nome) headers["X-Usuario"] = nomeParaHeaderHttp(USUARIO_LOGADO.nome);
+  const res = await fetch(API+path, {headers, ...opts});
+  if(res.status === 401){
+    USUARIO_LOGADO = null;
+    if(!sessaoExpiradaAvisada){ sessaoExpiradaAvisada = true; toast("Sessão expirada. Faça login novamente.", true); }
+    mostrarAuthScreen("login");
+    throw new Error("Sessão expirada.");
+  }
+  if(!res.ok){ let msg="Erro na requisição"; try{ msg=(await res.json()).erro||msg; }catch(e){} toast(msg, true); throw new Error(msg); }
+  if(res.status===204) return null;
+  return res.json();
+}
+
+// chamarAuthApi(): usada só nas telas de login/cadastro/esqueci-senha, ANTES
+// de existir sessão — um 401/400 aqui é "e-mail ou senha inválidos" ou
+// "e-mail já cadastrado", não "sessão expirada", por isso não passa por api().
+async function chamarAuthApi(path, body){
+  const res = await fetch(API+path, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+  let json = null;
+  try{ json = await res.json(); }catch(e){}
+  if(!res.ok) throw new Error((json && json.erro) || "Erro na requisição.");
+  return json;
+}
+
+// ---------------- estado global ----------------
+let USUARIO_LOGADO = null;
+let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
+let PROJETO=null, ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[];
+let editingAtividadeId=null, editingRequisitoId=null;
+const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
+
+function byId(list, id){ return list.find(x=>x.id===id); }
+
+// ---------------- boot ----------------
+function projLabelText(){
+  if(!PROJETO) return "Nenhum projeto cadastrado";
+  const sigla = PROJETO.sigla ? `${PROJETO.sigla} — ` : "";
+  return `${sigla}${PROJETO.nome} — ${PROJETO.cliente}`;
+}
+
+// ---------------- autenticação: tela de login/cadastro/esqueci-senha ----------------
+async function verificarSessao(){
+  try{
+    const res = await fetch(API+"/auth/me");
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; }
+}
+
+function mostrarAuthScreen(pane){
+  $("app-header").hidden = true;
+  $("app-main").hidden = true;
+  $("auth-screen").hidden = false;
+  trocarPaneAuth(pane || "login");
+}
+
+function mostrarApp(){
+  $("auth-screen").hidden = true;
+  $("app-header").hidden = false;
+  $("app-main").hidden = false;
+  sessaoExpiradaAvisada = false;
+  atualizarBarraUsuario();
+}
+
+function atualizarBarraUsuario(){
+  if(USUARIO_LOGADO) $("user-chip-nome").textContent = USUARIO_LOGADO.nome;
+}
+
+function trocarPaneAuth(pane){
+  ["login","esqueci","cadastro"].forEach(p=>{ $(`auth-pane-${p}`).hidden = (p!==pane); });
+  ["login-erro","esqueci-erro","esqueci-sucesso","cad-erro"].forEach(id=>{ $(id).hidden = true; $(id).textContent=""; });
+}
+
+function mostrarErroAuth(id, msg){ const el=$(id); el.textContent = msg; el.hidden = false; }
+
+async function doLogin(){
+  const email = $("login-email").value.trim();
+  const senha = $("login-senha").value;
+  if(!email || !senha){ mostrarErroAuth("login-erro","Informe e-mail e senha."); return; }
+  $("btn-login").disabled = true;
+  try{
+    USUARIO_LOGADO = await chamarAuthApi("/auth/login", {email, senha});
+    mostrarApp();
+    await iniciarApp();
+  }catch(e){
+    mostrarErroAuth("login-erro", e.message);
+  }finally{
+    $("btn-login").disabled = false;
+  }
+}
+
+async function doCadastro(){
+  const dados = {
+    nome: $("cad-nome").value.trim(),
+    email: $("cad-email").value.trim(),
+    telefone: $("cad-telefone").value.trim(),
+    empresa: $("cad-empresa").value.trim(),
+    cargo: $("cad-cargo").value.trim(),
+    senha: $("cad-senha").value,
+    recebe_relatorio_executivo: $("cad-recebe-relatorio").checked,
+    recebe_notificacao_whatsapp: $("cad-recebe-whatsapp").checked,
+  };
+  const faltando = ["nome","email","telefone","empresa","cargo","senha"].filter(k=>!dados[k]);
+  if(faltando.length){ mostrarErroAuth("cad-erro","Todos os campos são obrigatórios."); return; }
+  if(dados.senha !== $("cad-senha-confirma").value){ mostrarErroAuth("cad-erro","As senhas não conferem."); return; }
+  if(dados.senha.length < 6){ mostrarErroAuth("cad-erro","A senha precisa ter pelo menos 6 caracteres."); return; }
+  $("btn-cadastrar").disabled = true;
+  try{
+    USUARIO_LOGADO = await chamarAuthApi("/auth/registrar", dados);
+    toast("Cadastro criado! Bem-vindo(a).");
+    mostrarApp();
+    await iniciarApp();
+  }catch(e){
+    mostrarErroAuth("cad-erro", e.message);
+  }finally{
+    $("btn-cadastrar").disabled = false;
+  }
+}
+
+async function doEsqueciSenha(){
+  const email = $("esqueci-email").value.trim();
+  if(!email){ mostrarErroAuth("esqueci-erro","Informe o e-mail."); return; }
+  $("btn-esqueci").disabled = true;
+  $("esqueci-erro").hidden = true; $("esqueci-sucesso").hidden = true;
+  try{
+    const r = await chamarAuthApi("/auth/esqueci-senha", {email});
+    $("esqueci-sucesso").textContent = r.mensagem || "Se este e-mail estiver cadastrado, uma nova senha foi enviada para ele.";
+    $("esqueci-sucesso").hidden = false;
+  }catch(e){
+    mostrarErroAuth("esqueci-erro", e.message);
+  }finally{
+    $("btn-esqueci").disabled = false;
+  }
+}
+
+function wireAuthScreen(){
+  $("link-esqueci-senha").addEventListener("click", e=>{ e.preventDefault(); trocarPaneAuth("esqueci"); });
+  $("link-ir-cadastro").addEventListener("click", e=>{ e.preventDefault(); trocarPaneAuth("cadastro"); });
+  $("link-voltar-login-1").addEventListener("click", e=>{ e.preventDefault(); trocarPaneAuth("login"); });
+  $("link-voltar-login-2").addEventListener("click", e=>{ e.preventDefault(); trocarPaneAuth("login"); });
+  $("btn-login").addEventListener("click", doLogin);
+  $("btn-esqueci").addEventListener("click", doEsqueciSenha);
+  $("btn-cadastrar").addEventListener("click", doCadastro);
+  ["login-email","login-senha"].forEach(id=> $(id).addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); }));
+  $("esqueci-email").addEventListener("keydown", e=>{ if(e.key==="Enter") doEsqueciSenha(); });
+  $("btn-logout").addEventListener("click", async ()=>{
+    try{ await api("/auth/logout", {method:"POST"}); }catch(e){}
+    location.reload();
+  });
+}
+
+function wireTrocarSenha(){
+  $("user-chip-nome").addEventListener("click", ()=>{
+    $("ts-senha-atual").value=""; $("ts-senha-nova").value=""; $("ts-senha-nova-confirma").value="";
+    $("ts-erro").hidden = true;
+    $("overlay-trocar-senha").hidden = false;
+  });
+  $("ts-close").addEventListener("click", ()=> $("overlay-trocar-senha").hidden = true);
+  $("ts-cancel").addEventListener("click", ()=> $("overlay-trocar-senha").hidden = true);
+  $("overlay-trocar-senha").addEventListener("click", e=>{ if(e.target.id==="overlay-trocar-senha") $("overlay-trocar-senha").hidden = true; });
+  $("ts-salvar").addEventListener("click", async ()=>{
+    const atual = $("ts-senha-atual").value, nova = $("ts-senha-nova").value, confirma = $("ts-senha-nova-confirma").value;
+    $("ts-erro").hidden = true;
+    if(!atual || !nova){ $("ts-erro").textContent="Preencha a senha atual e a nova senha."; $("ts-erro").hidden=false; return; }
+    if(nova !== confirma){ $("ts-erro").textContent="As senhas novas não conferem."; $("ts-erro").hidden=false; return; }
+    try{
+      await api("/auth/trocar-senha", {method:"POST", body: JSON.stringify({senha_atual: atual, senha_nova: nova})});
+      toast("Senha alterada.");
+      $("overlay-trocar-senha").hidden = true;
+    }catch(e){
+      $("ts-erro").textContent = e.message; $("ts-erro").hidden = false;
+    }
+  });
+}
+
+async function boot(){
+  wireAuthScreen();
+  wireTrocarSenha();
+  wireProjetoModal();
+  USUARIO_LOGADO = await verificarSessao();
+  if(!USUARIO_LOGADO){ mostrarAuthScreen("login"); return; }
+  mostrarApp();
+  await iniciarApp();
+}
+
+async function iniciarApp(){
+  const projetos = await api("/projetos");
+  PROJETO = projetos[0];
+  $("proj-label").textContent = projLabelText();
+  if(!PROJETO){
+    $("tabs").style.display = "none";
+    openProjetoModal(true);
+    return;
+  }
+  await afterProjetoReady();
+}
+
+async function afterProjetoReady(){
+  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, PARAMETROS] = await Promise.all([
+    api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
+    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`), api(`/parametros`)
+  ]);
+  aplicarMarcaNoTopo();
+  fillStaticSelects();
+  wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
+  wireConfiguracoes(); wireParametros();
+  setupCsvTemplateLink();
+  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
+  // Reaplica agora que REQUISITOS já está carregado — o select "Item do TR" da
+  // atividade depende dele e a primeira chamada acima rodou antes desse load.
+  fillStaticSelects();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
+  $("tabs").style.display = "flex";
+  $("btn-edit-projeto").style.display = "inline-flex";
+}
+
+function fillStaticSelects(){
+  const etapaOpts = `<option value="">Etapa (todas)</option>` + ETAPAS.map(e=>`<option value="${e.id}">${e.numero} — ${esc(e.nome)}</option>`).join("");
+  $("f-etapa").innerHTML = etapaOpts;
+  $("at-etapa").innerHTML = ETAPAS.map(e=>`<option value="${e.id}">${e.numero} — ${esc(e.nome)}</option>`).join("");
+
+  const frenteOpts = (onlyAtivas) => (onlyAtivas ? FRENTES.filter(x=>x.ativo!==false) : FRENTES)
+    .map(x=>`<option value="${x.id}">${esc(x.nome)}${x.ativo===false?" (inativa)":""}</option>`).join("");
+  $("f-frente").innerHTML = `<option value="">Frente (todas)</option>` + frenteOpts(false);
+  $("at-frente").innerHTML = frenteOpts(true);
+  $("rf-frente").innerHTML = `<option value="">Frente (todas)</option>` + frenteOpts(false);
+  $("req-frente").innerHTML = `<option value="">—</option>` + frenteOpts(false);
+
+  $("at-tipo").innerHTML = `<option value="">—</option>` + TIPOS.map(t=>`<option value="${t.id}">${esc(t.nome)}${t.ativo===false?" (inativo)":""}</option>`).join("");
+  $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
+
+  // Nota: as listas de responsáveis NÃO filtram só "ativo" — um responsável
+  // marcado inativo continua aparecendo (com "(inativo)" no rótulo) porque
+  // atividades antigas ainda podem apontar pra ele; escondê-lo faria o campo
+  // "resetar" silenciosamente pro vazio ao reabrir/editar a atividade.
+  const recursoLabel = r => `${esc(r.nome)} (${esc(r.tipo_vinculo||"—")}${r.cargo?" · "+esc(r.cargo):""})${r.ativo===false?" — inativo":""}`;
+  const recursoOpts = RECURSOS.map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
+  $("f-responsavel").innerHTML = `<option value="">Responsável Techne (todos)</option>` + recursoOpts;
+  $("f-responsavel-cliente").innerHTML = `<option value="">Responsável cliente (todos)</option>` + recursoOpts;
+  $("at-responsavel-techne").innerHTML = `<option value="">—</option>` + recursoOpts;
+  $("at-responsavel-cliente").innerHTML = `<option value="">—</option>` + recursoOpts;
+  $("req-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
+  $("at-relato-pend-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
+
+  const statusAtiv = ["Não iniciada","Em andamento","Bloqueada","Concluída","Cancelada"];
+  $("f-status").innerHTML = `<option value="">Status (todos)</option>` + statusAtiv.map(s=>`<option>${s}</option>`).join("");
+
+  const classif = ["Essencial/Imediato","Obrigatório","Desejável","Customizado Curto","Customizado Médio","Customizado Longo"];
+  $("rf-classificacao").innerHTML = `<option value="">Classificação (todas)</option>` + classif.map(c=>`<option>${c}</option>`).join("");
+  const atend = ["A analisar","Nativo","Parcial","Customizado","Não atende"];
+  $("rf-atendimento").innerHTML = `<option value="">Atendimento (todos)</option>` + atend.map(c=>`<option>${c}</option>`).join("");
+  const statusReq = ["Não iniciado","Em levantamento","Especificado","Em desenvolvimento","Em homologação","Entregue","Aprovado","Rejeitado"];
+  $("rf-status").innerHTML = `<option value="">Status (todos)</option>` + statusReq.map(c=>`<option>${c}</option>`).join("");
+}
+
+// ---------------- nav ----------------
+function wireNav(){
+  $("tabs").addEventListener("click", e=>{
+    const btn=e.target.closest("button[data-view]"); if(!btn) return;
+    goToView(btn.dataset.view);
+  });
+}
+
+// Botão "↻ Atualizar" do Dashboard — recarrega atividades e marcos do servidor
+// (outra pessoa pode ter editado algo enquanto esta tela ficou aberta) e
+// redesenha os KPIs, sem precisar dar F5 na página inteira.
+function wireDashboardRefresh(){
+  $("btn-refresh-dashboard")?.addEventListener("click", async ()=>{
+    const btn = $("btn-refresh-dashboard"), status = $("dash-refresh-status");
+    btn.disabled = true; status.textContent = "Atualizando…";
+    try{
+      await Promise.all([loadAtividades(), loadRiscosMarcos()]);
+      renderDashboard();
+      status.textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR");
+    }catch(e){
+      // api() já mostra um toast com o erro específico — aqui só registra o status local.
+      status.textContent = "Falha ao atualizar.";
+    }finally{
+      btn.disabled = false;
+    }
+  });
+}
+function goToView(view){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+view));
+  if(view==="critico") loadCaminhoCritico();
+}
+
+// ================= ATIVIDADES: carregar/filtrar =================
+async function loadAtividades(){
+  ATIVIDADES = await api(`/atividades?projeto_id=${PROJETO.id}`);
+}
+
+function currentFilters(){
+  return {
+    search: $("f-search").value.trim().toLowerCase(),
+    etapa: $("f-etapa").value, frente: $("f-frente").value, status: $("f-status").value,
+    responsavel: $("f-responsavel").value, responsavelCliente: $("f-responsavel-cliente").value,
+    atrasadas: $("f-atrasadas").checked,
+    range: document.querySelector("#quickperiod button.active")?.dataset.range || "todas",
+  };
+}
+function periodRange(range){
+  const now=new Date(); const y=now.getFullYear(), m=now.getMonth(), d=now.getDate();
+  if(range==="semana"){ const dow=(now.getDay()+6)%7; const start=new Date(y,m,d-dow); const end=new Date(y,m,d-dow+6); return [start,end]; }
+  if(range==="mes"){ return [new Date(y,m,1), new Date(y,m+1,0)]; }
+  if(range==="trimestre"){ const q=Math.floor(m/3); return [new Date(y,q*3,1), new Date(y,q*3+3,0)]; }
+  return null;
+}
+function toISO(d){ return d.toISOString().slice(0,10); }
+
+function applyFilters(list){
+  const f = currentFilters();
+  const range = periodRange(f.range);
+  return list.filter(a=>{
+    if(f.etapa && a.etapa_id!==f.etapa) return false;
+    if(f.frente && a.frente_trabalho_id!==f.frente) return false;
+    if(f.status && a.status!==f.status) return false;
+    if(f.responsavel && a.responsavel_techne_id!==f.responsavel) return false;
+    if(f.responsavelCliente && a.responsavel_cliente_id!==f.responsavelCliente) return false;
+    if(f.atrasadas && !a.atrasada) return false;
+    if(f.search){
+      const hay=[a.codigo_wbs,a.nome,a.descricao,a.responsavel_techne_nome,a.responsavel_cliente_nome].join(" ").toLowerCase();
+      if(!hay.includes(f.search)) return false;
+    }
+    if(range && a.dtini_prev && a.dtfim_prev){
+      const ini=new Date(a.dtini_prev+"T00:00:00"), fim=new Date(a.dtfim_prev+"T00:00:00");
+      if(!(ini<=range[1] && fim>=range[0])) return false;
+    } else if(range){ return false; }
+    return true;
+  });
+}
+
+function wireFilters(){
+  // f-search só ouve "input" (não "change"): "change" num campo de texto só dispara no
+  // blur, e um clique numa linha da tabela GERA um blur no campo de busca antes do
+  // mouseup completar o gesto de clique — se esse blur re-renderizasse a tabela (trocando
+  // o <tr> por um novo nó no meio do clique), o navegador não sintetiza o evento "click"
+  // porque o elemento que recebeu o mousedown desapareceu do DOM, e o clique na linha
+  // silenciosamente não fazia nada na primeira tentativa logo depois de digitar uma busca.
+  $("f-search").addEventListener("input", renderCronograma);
+  ["f-etapa","f-frente","f-status","f-responsavel","f-responsavel-cliente","f-atrasadas"].forEach(id=>{
+    $(id).addEventListener("input", renderCronograma);
+    $(id).addEventListener("change", renderCronograma);
+  });
+  $("quickperiod").addEventListener("click", e=>{
+    const btn=e.target.closest("button"); if(!btn) return;
+    document.querySelectorAll("#quickperiod button").forEach(b=>b.classList.toggle("active", b===btn));
+    renderCronograma();
+  });
+  $("btn-clear-filters").addEventListener("click", ()=>{
+    $("f-search").value=""; $("f-etapa").value=""; $("f-frente").value=""; $("f-status").value="";
+    $("f-responsavel").value=""; $("f-responsavel-cliente").value=""; $("f-atrasadas").checked=false;
+    document.querySelectorAll("#quickperiod button").forEach(b=>b.classList.toggle("active", b.dataset.range==="todas"));
+    renderCronograma();
+  });
+  $("btn-new-atividade").addEventListener("click", ()=>openAtividadeModal(null));
+}
+
+// ================= CRONOGRAMA: tabela + gantt =================
+function renderCronograma(){
+  const list = applyFilters(ATIVIDADES).sort((a,b)=>(a.dtini_prev||"9999").localeCompare(b.dtini_prev||"9999"));
+  renderAtividadesTable(list);
+  renderGantt(list);
+}
+
+function horasCell(a){
+  const prev = a.prazo_horas!=null ? Number(a.prazo_horas) : null;
+  const real = a.horas_realizadas!=null ? Number(a.horas_realizadas) : null;
+  if(prev==null && real==null) return `<span class="muted">—</span>`;
+  if(real==null) return `<span class="mono muted">${prev}h prev.</span>`;
+  const acima = prev!=null && real > prev;
+  const cor = prev==null ? "var(--text-muted)" : (acima ? "var(--danger)" : "var(--ok)");
+  const titulo = prev==null ? "Sem previsão cadastrada" : (acima ? `${(real-prev).toFixed(1)}h acima do previsto` : `${(prev-real).toFixed(1)}h abaixo/dentro do previsto`);
+  return `<span class="mono" style="color:${cor};" title="${titulo}">${prev??"—"}h / ${real}h</span>`;
+}
+
+function renderAtividadesTable(list){
+  if(!list.length){
+    $("atividades-tbody").innerHTML = `<tr class="empty-row"><td colspan="10">Nenhuma atividade encontrada para os filtros atuais.</td></tr>`;
+    return;
+  }
+  $("atividades-tbody").innerHTML = list.map(a=>`
+    <tr class="clickable" data-id="${a.id}">
+      <td class="mono">${esc(a.codigo_wbs||"—")}</td>
+      <td>${a.eh_atividade_master?`<span title="Atividade master (entregável mestre do projeto)">★</span> `:""}${esc(a.nome)}${a.requisito_tr_codigo?`<div class="muted" style="font-size:11px;">TR: ${esc(a.requisito_tr_codigo)}</div>`:""}</td>
+      <td>${a.etapa_numero}.${esc(a.frente_nome)}</td>
+      <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}${a.atrasada?" "+pill("Atrasada","danger"):""}</td>
+      <td class="mono">${fmtDate(a.dtini_prev)}</td>
+      <td class="mono">${fmtDate(a.dtfim_prev)}</td>
+      <td class="mono">${a.percentual_concluido}%</td>
+      <td>${horasCell(a)}</td>
+      <td>${esc(a.responsavel_techne_nome||"—")}<div class="muted" style="font-size:11px;">${a.responsavel_cliente_nome?"Cliente: "+esc(a.responsavel_cliente_nome):""}</div></td>
+      <td>${a.cpm_critica? pill("Crítica","danger") : ""}</td>
+    </tr>`).join("");
+  $("atividades-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>openAtividadeModal(byId(ATIVIDADES, tr.dataset.id)));
+  });
+}
+
+function renderGantt(list){
+  const withDates = list.filter(a=>a.dtini_prev && a.dtfim_prev);
+  const el = $("gantt");
+  if(!withDates.length){ el.innerHTML = `<div style="padding:30px;color:var(--text-faint);font-size:13px;">Sem datas suficientes para desenhar o gráfico.</div>`; return; }
+
+  const minDate = new Date(Math.min(...withDates.map(a=>new Date(a.dtini_prev+"T00:00:00"))));
+  const maxDate = new Date(Math.max(...withDates.map(a=>new Date(a.dtfim_prev+"T00:00:00"))));
+  const totalDays = Math.max(1, Math.round((maxDate-minDate)/86400000)+7);
+  const pxPerDay = totalDays>140 ? 6 : totalDays>70 ? 10 : 18;
+  const chartWidth = totalDays*pxPerDay;
+
+  let headerHtml = "";
+  for(let d=new Date(minDate); d<=maxDate; d.setDate(d.getDate()+1)){
+    if(d.getDate()===1){
+      const left = Math.round((d-minDate)/86400000)*pxPerDay;
+      headerHtml += `<span style="left:${left}px;">${d.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'})}</span>`;
+    }
+  }
+  const today = new Date(new Date().toDateString());
+  const todayLeft = Math.round((today-minDate)/86400000)*pxPerDay;
+
+  const labelsHtml = list.map(a=>`<div class="gantt-label-row" title="${esc(a.nome)}"><span class="wbs">${esc(a.codigo_wbs||"")}</span> ${esc(a.nome)}</div>`).join("");
+  const rowsHtml = list.map(a=>{
+    if(!(a.dtini_prev && a.dtfim_prev)) return `<div class="gantt-row"></div>`;
+    const left = Math.round((new Date(a.dtini_prev+"T00:00:00")-minDate)/86400000)*pxPerDay;
+    const width = Math.max(pxPerDay, (Math.round((new Date(a.dtfim_prev+"T00:00:00")-new Date(a.dtini_prev+"T00:00:00"))/86400000)+1)*pxPerDay);
+    const cor = a.frente_cor || "var(--accent)";
+    return `<div class="gantt-row"><div class="gantt-bar ${a.cpm_critica?'critica':''}" style="left:${left}px;width:${width}px;background:${cor};" title="${esc(a.nome)} (${a.percentual_concluido}%)">
+      <div class="fill" style="width:${100-a.percentual_concluido}%;right:0;left:auto;"></div>
+    </div></div>`;
+  }).join("");
+
+  el.innerHTML = `<div class="gantt">
+    <div class="gantt-labels"><div class="gantt-label-row" style="font-weight:700;border-bottom:2px solid var(--border);">Atividade</div>${labelsHtml}</div>
+    <div class="gantt-chart" style="min-width:${chartWidth}px;">
+      <div class="gantt-header" style="width:${chartWidth}px;">${headerHtml}${todayLeft>=0&&todayLeft<=chartWidth?`<div class="gantt-today" style="left:${todayLeft}px;" title="Hoje"></div>`:""}</div>
+      <div style="position:relative;">${todayLeft>=0&&todayLeft<=chartWidth?`<div class="gantt-today" style="left:${todayLeft}px;height:100%;"></div>`:""}${rowsHtml}</div>
+    </div>
+  </div>`;
+}
+
+// ================= DASHBOARD =================
+function renderDashboard(){
+  const total = ATIVIDADES.length;
+  const concluidas = ATIVIDADES.filter(a=>a.status==="Concluída").length;
+  const atrasadas = ATIVIDADES.filter(a=>a.atrasada).length;
+  const emAndamento = ATIVIDADES.filter(a=>a.status==="Em andamento").length;
+  const criticas = ATIVIDADES.filter(a=>a.cpm_critica).length;
+  $("dash-kpis").innerHTML = [
+    {l:"Total de atividades", v:total},
+    {l:"Concluídas", v:`${concluidas} (${total?Math.round(100*concluidas/total):0}%)`, c:"ok"},
+    {l:"Em andamento", v:emAndamento},
+    {l:"Atrasadas", v:atrasadas, c: atrasadas? "danger":""},
+    {l:"No caminho crítico", v:criticas},
+  ].map(k=>`<div class="kpi"><div class="label">${k.l}</div><div class="value ${k.c||''}">${k.v}</div></div>`).join("");
+
+  api(`/relatorios/resumo-frentes?projeto_id=${PROJETO.id}`).then(rows=>{
+    $("dash-frentes").innerHTML = rows.filter(r=>r.total_atividades>0).map(r=>{
+      const pctConcl = Math.round(100*r.concluidas/r.total_atividades);
+      const pctAnd = Math.round(100*r.em_andamento/r.total_atividades);
+      return `<div class="frente-row"><span class="nome">${esc(r.frente_nome)}</span>
+        <span class="bar-track"><div style="width:${pctConcl}%;background:var(--ok);"></div><div style="width:${pctAnd}%;background:var(--accent);"></div></span>
+        <span class="count">${r.concluidas}/${r.total_atividades}</span></div>`;
+    }).join("");
+  });
+
+  api(`/relatorios/atrasadas?projeto_id=${PROJETO.id}`).then(rows=>{
+    $("dash-atrasadas").innerHTML = rows.length ? rows.map(r=>`
+      <tr><td class="mono">${esc(r.codigo_wbs||"—")}</td><td>${esc(r.nome)}</td><td>${esc(r.frente_nome)}</td>
+      <td class="mono">${fmtDate(r.dtfim_prev)}</td><td class="mono" style="color:var(--danger);">${r.dias_atraso}d</td>
+      <td>${esc(r.responsavel_techne_nome||"—")}</td></tr>`).join("")
+      : `<tr class="empty-row"><td colspan="6">Nenhuma atividade atrasada. 🎉</td></tr>`;
+  });
+
+  MARCOS.slice().sort((a,b)=>a.data_prevista.localeCompare(b.data_prevista)).slice(0,6).forEach(()=>{});
+  const proximos = MARCOS.filter(m=>!m.data_real).sort((a,b)=>a.data_prevista.localeCompare(b.data_prevista)).slice(0,6);
+  $("dash-marcos").innerHTML = proximos.length ? proximos.map(m=>`<li><span>${esc(m.nome)}</span><span class="mono muted">${fmtDate(m.data_prevista)}</span></li>`).join("")
+    : `<li class="muted">Nenhum marco pendente.</li>`;
+
+  renderAlertasPrioridade();
+  renderHorasPorResponsavel();
+}
+
+// Atividades Urgente/Alta, ainda não concluídas/canceladas, sem responsável Techne ou sem fim previsto —
+// ficam fáceis de esquecer porque não aparecem em "atrasadas" enquanto não passar do prazo (ou nem tem prazo).
+function renderAlertasPrioridade(){
+  const alertas = ATIVIDADES.filter(a =>
+    (a.prioridade === "Urgente" || a.prioridade === "Alta") &&
+    a.status !== "Concluída" && a.status !== "Cancelada" &&
+    (!a.responsavel_techne_id || !a.dtfim_prev)
+  ).sort((a,b)=> (a.prioridade==="Urgente"?0:1) - (b.prioridade==="Urgente"?0:1));
+
+  $("dash-alertas-card").hidden = alertas.length === 0;
+  if(!alertas.length) return;
+  $("dash-alertas").innerHTML = alertas.map(a=>{
+    const faltando = [];
+    if(!a.responsavel_techne_id) faltando.push("sem responsável Techne");
+    if(!a.dtfim_prev) faltando.push("sem data fim prevista");
+    return `<tr class="clickable" data-id="${a.id}">
+      <td class="mono">${esc(a.codigo_wbs||"—")}</td><td>${esc(a.nome)}</td>
+      <td>${pill(a.prioridade, a.prioridade==="Urgente"?"danger":"warn")}</td>
+      <td>${esc(a.frente_nome)}</td>
+      <td class="muted">${faltando.join(", ")}</td>
+    </tr>`;
+  }).join("");
+  $("dash-alertas").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>{ goToView("cronograma"); openAtividadeModal(byId(ATIVIDADES, tr.dataset.id)); });
+  });
+}
+
+// Soma horas previstas/realizadas por responsável (Techne ou cliente), a partir das atividades já carregadas —
+// não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS.
+function renderHorasPorResponsavel(){
+  // Diferença só é calculada sobre o subconjunto de atividades que já têm horas_realizadas
+  // lançadas — comparar realizado x previsto do total (incluindo o que nem começou) faria
+  // parecer que todo mundo está muito "abaixo do previsto" só porque o trabalho ainda não
+  // foi executado, o que não é a mesma coisa que ter gastado menos horas que o planejado.
+  const porPessoa = new Map();
+  const acumula = (recursoId, a) => {
+    if(!recursoId) return;
+    if(!porPessoa.has(recursoId)) porPessoa.set(recursoId, {qtd:0, previstas:0, previstasLancadas:0, realizadas:0, qtdLancadas:0});
+    const acc = porPessoa.get(recursoId);
+    acc.qtd += 1;
+    acc.previstas += Number(a.prazo_horas || 0);
+    if(a.horas_realizadas != null){
+      acc.qtdLancadas += 1;
+      acc.previstasLancadas += Number(a.prazo_horas || 0);
+      acc.realizadas += Number(a.horas_realizadas || 0);
+    }
+  };
+  ATIVIDADES.forEach(a => { acumula(a.responsavel_techne_id, a); acumula(a.responsavel_cliente_id, a); });
+
+  const linhas = [...porPessoa.entries()]
+    .map(([recursoId, acc]) => ({recurso: byId(RECURSOS, recursoId), ...acc}))
+    .filter(l => l.recurso)
+    .sort((a,b) => b.previstas - a.previstas);
+
+  $("dash-horas-resp").innerHTML = linhas.length ? linhas.map(l=>{
+    const temLancamento = l.qtdLancadas > 0;
+    const dif = l.realizadas - l.previstasLancadas;
+    const corDif = !temLancamento ? "var(--text-faint)" : (dif > 0 ? "var(--danger)" : "var(--ok)");
+    const difTxt = !temLancamento ? "—" : (dif > 0 ? `+${dif.toFixed(1)}h` : `${dif.toFixed(1)}h`);
+    const tituloDif = temLancamento ? `Calculado sobre ${l.qtdLancadas} de ${l.qtd} atividade(s) com horas realizadas lançadas.` : "Nenhuma atividade desta pessoa tem horas realizadas lançadas ainda.";
+    return `<tr>
+      <td>${esc(l.recurso.nome)}</td>
+      <td>${pill(l.recurso.tipo_vinculo||"—", TIPO_VINCULO_COLOR[l.recurso.tipo_vinculo]||"faint")}</td>
+      <td class="mono">${l.qtd}</td>
+      <td class="mono">${l.previstas.toFixed(1)}h</td>
+      <td class="mono">${temLancamento? l.realizadas.toFixed(1)+"h" : "—"}</td>
+      <td class="mono" style="color:${corDif};" title="${tituloDif}">${difTxt}</td>
+    </tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="6">Nenhuma atividade com responsável cadastrada ainda.</td></tr>`;
+}
+
+// ================= CAMINHO CRÍTICO =================
+async function loadCaminhoCritico(){
+  $("cpm-status").textContent = "Carregando…";
+  const rows = await api(`/cpm/caminho-critico?projeto_id=${PROJETO.id}`);
+  if(!rows.length){ $("cpm-status").textContent = "Caminho crítico ainda não calculado — clique em Recalcular."; }
+  else { $("cpm-status").textContent = `${rows.length} atividades no caminho crítico.`; }
+  $("critico-tbody").innerHTML = rows.length ? rows.sort((a,b)=>a.cpm_es_dias-b.cpm_es_dias).map(r=>`
+    <tr><td class="mono">${esc(r.codigo_wbs||"—")}</td><td>${esc(r.nome)}</td><td>${esc(r.frente_nome)}</td>
+    <td class="mono">${r.cpm_es_dias}</td><td class="mono">${r.cpm_ef_dias}</td>
+    <td class="mono">${fmtDate(r.cpm_es_data)}</td><td class="mono">${fmtDate(r.cpm_ef_data)}</td>
+    <td class="mono">${r.cpm_folga_dias}</td></tr>`).join("")
+    : `<tr class="empty-row"><td colspan="8">Nada calculado ainda.</td></tr>`;
+}
+$("btn-recalcular-cpm")?.addEventListener?.("click", null);
+document.addEventListener("DOMContentLoaded", ()=>{
+  $("btn-recalcular-cpm").addEventListener("click", async ()=>{
+    $("cpm-status").textContent = "Calculando…";
+    try{
+      const r = await api("/cpm/recalcular", {method:"POST", body: JSON.stringify({projeto_id: PROJETO.id})});
+      toast(`Caminho crítico recalculado: ${r.caminho_critico.length} atividades críticas, duração ${r.duracao_projeto_dias_uteis} dias úteis.`);
+      await loadAtividades(); renderCronograma(); renderDashboard(); loadCaminhoCritico();
+    }catch(e){}
+  });
+});
+
+// ================= REQUISITOS =================
+async function loadRequisitos(){ REQUISITOS = await api(`/requisitos?projeto_id=${PROJETO.id}`); }
+
+function reqFilters(){
+  return { search:$("rf-search").value.trim().toLowerCase(), tipo:$("rf-tipo").value, frente:$("rf-frente").value,
+    classificacao:$("rf-classificacao").value, atendimento:$("rf-atendimento").value, status:$("rf-status").value };
+}
+const TIPO_REQ_COLOR = {"Funcional":"accent","Não Funcional":"warn"};
+function renderRequisitos(){
+  const f = reqFilters();
+  const list = REQUISITOS.filter(r=>{
+    if(f.tipo && r.tipo_requisito!==f.tipo) return false;
+    if(f.frente && r.frente_trabalho_id!==f.frente) return false;
+    if(f.classificacao && r.classificacao!==f.classificacao) return false;
+    if(f.atendimento && r.atendimento!==f.atendimento) return false;
+    if(f.status && r.status!==f.status) return false;
+    if(f.search && !([r.codigo,r.titulo,r.descricao].join(" ").toLowerCase().includes(f.search))) return false;
+    return true;
+  });
+  const total = REQUISITOS.length;
+  const count = t => REQUISITOS.filter(r=>r.atendimento===t).length;
+  $("req-kpis").innerHTML = [
+    {l:"Total", v:total},
+    {l:"Funcionais", v:REQUISITOS.filter(r=>r.tipo_requisito==="Funcional").length},
+    {l:"Não funcionais", v:REQUISITOS.filter(r=>r.tipo_requisito==="Não Funcional").length},
+    {l:"Nativo", v:count("Nativo")}, {l:"Parcial", v:count("Parcial")},
+    {l:"Customizado", v:count("Customizado")}, {l:"A analisar", v:count("A analisar")},
+  ].map(k=>`<div class="kpi"><div class="label">${k.l}</div><div class="value">${k.v}</div></div>`).join("");
+
+  $("requisitos-tbody").innerHTML = list.length ? list.map(r=>`
+    <tr class="clickable" data-id="${r.id}"><td class="mono">${esc(r.codigo)}</td>
+    <td>${pill(r.tipo_requisito||"Funcional", TIPO_REQ_COLOR[r.tipo_requisito]||"accent")}</td>
+    <td>${esc(r.titulo)}<div class="muted">${esc(r.frente_nome||"—")}${r.modulo_origem?" · "+esc(r.modulo_origem):""}</div></td>
+    <td>${esc(r.classificacao)}</td><td>${pill(r.atendimento, ATENDIMENTO_COLOR[r.atendimento])}</td>
+    <td>${pill(r.status, STATUS_COLOR[r.status]||"faint")}</td><td>${esc(r.responsavel_nome||"—")}</td></tr>`).join("")
+    : `<tr class="empty-row"><td colspan="7">Nenhum requisito encontrado.</td></tr>`;
+  $("requisitos-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>openRequisitoModal(byId(REQUISITOS, tr.dataset.id)));
+  });
+}
+["rf-search","rf-tipo","rf-frente","rf-classificacao","rf-atendimento","rf-status"].forEach(id=>{
+  document.addEventListener("DOMContentLoaded", ()=>{ $(id).addEventListener("input", renderRequisitos); $(id).addEventListener("change", renderRequisitos); });
+});
+
+// ================= RISCOS & MARCOS =================
+async function loadRiscosMarcos(){
+  [RISCOS, MARCOS] = await Promise.all([api(`/riscos?projeto_id=${PROJETO.id}`), api(`/marcos?projeto_id=${PROJETO.id}`)]);
+}
+function renderRiscosMarcos(){
+  const nivelCor = {"Baixo":"ok","Médio":"warn","Alto":"danger"};
+  $("riscos-list").innerHTML = RISCOS.length ? RISCOS.map(r=>`
+    <li style="flex-direction:column;align-items:flex-start;gap:4px;">
+      <div style="display:flex;justify-content:space-between;width:100%;"><strong style="font-size:12.5px;">${esc(r.descricao)}</strong>${pill(r.status, r.status==="Aberto"?"warn":r.status==="Mitigado"?"accent":"ok")}</div>
+      <div class="muted">Probabilidade ${pill(r.probabilidade, nivelCor[r.probabilidade])} · Impacto ${pill(r.impacto, nivelCor[r.impacto])} ${r.responsavel_nome?(' · '+esc(r.responsavel_nome)):''}</div>
+    </li>`).join("") : `<li class="muted">Nenhum risco cadastrado.</li>`;
+
+  $("marcos-list").innerHTML = MARCOS.length ? MARCOS.slice().sort((a,b)=>a.data_prevista.localeCompare(b.data_prevista)).map(m=>`
+    <li><span>${esc(m.nome)}${m.data_real?" "+pill("Concluído","ok"):""}</span><span class="mono muted">${fmtDate(m.data_prevista)}</span></li>`).join("")
+    : `<li class="muted">Nenhum marco cadastrado.</li>`;
+}
+
+// ================= MODAL ATIVIDADE =================
+function switchPane(container, name){
+  container.querySelectorAll(".modal-tabs button").forEach(b=>b.classList.toggle("active", b.dataset.pane===name));
+  container.querySelectorAll(".modal-pane").forEach(p=>p.classList.toggle("active", p.dataset.pane===name));
+}
+function wireAtividadeModal(){
+  const modal = $("overlay-atividade");
+  modal.querySelector(".modal-tabs").addEventListener("click", e=>{
+    const b=e.target.closest("button[data-pane]"); if(b) switchPane(modal, b.dataset.pane);
+  });
+  $("at-close").addEventListener("click", closeAtividadeModal);
+  $("at-cancel").addEventListener("click", closeAtividadeModal);
+  modal.addEventListener("click", e=>{ if(e.target===modal) closeAtividadeModal(); });
+  $("at-save").addEventListener("click", saveAtividade);
+  $("at-delete").addEventListener("click", ()=>{
+    askConfirm("Excluir esta atividade? Dependências e vínculos serão removidos também.", async ()=>{
+      await api(`/atividades/${editingAtividadeId}`, {method:"DELETE"});
+      await loadAtividades(); renderCronograma(); renderDashboard(); closeAtividadeModal();
+      toast("Atividade excluída.");
+    });
+  });
+  $("at-dep-add").addEventListener("click", async ()=>{
+    const predecessora_id = $("at-dep-predecessora").value; if(!predecessora_id) return;
+    await api(`/atividades/${editingAtividadeId}/dependencias`, {method:"POST", body: JSON.stringify({
+      predecessora_id, tipo: $("at-dep-tipo").value, lag_horas: Number($("at-dep-lag").value||0)})});
+    await refreshDeps();
+  });
+  $("at-req-add").addEventListener("click", async ()=>{
+    const requisito_id = $("at-req-add-select").value; if(!requisito_id) return;
+    await api(`/atividades/${editingAtividadeId}/requisitos`, {method:"POST", body: JSON.stringify({requisito_id})});
+    await refreshReqs();
+  });
+  $("at-anexo-add").addEventListener("click", async ()=>{
+    const file = $("at-anexo-file").files[0]; if(!file) return;
+    const fd = new FormData(); fd.append("entidade_tipo","atividade"); fd.append("entidade_id", editingAtividadeId); fd.append("file", file);
+    await api("/anexos", {method:"POST", body: fd});
+    $("at-anexo-file").value=""; await refreshAnexos();
+  });
+  $("at-relato-pendencia").addEventListener("change", e=>{
+    $("at-relato-pendencia-campos").style.display = e.target.checked ? "grid" : "none";
+  });
+  $("at-status").addEventListener("change", ()=>{
+    if(editingAtividadeId) refreshRelatos();
+  });
+  $("at-relato-add").addEventListener("click", async ()=>{
+    const texto = $("at-relato-texto").value.trim();
+    if(!texto){ toast("Informe o texto do relato.", true); return; }
+    const eh_pendencia = $("at-relato-pendencia").checked;
+    const data = {
+      texto, eh_pendencia,
+      pendencia_responsavel_id: eh_pendencia ? ($("at-relato-pend-responsavel").value || null) : null,
+      pendencia_prazo_possivel: eh_pendencia ? ($("at-relato-pend-prazo").value || null) : null,
+      pendencia_data_limite: eh_pendencia ? ($("at-relato-pend-limite").value || null) : null,
+    };
+    try{
+      await api(`/atividades/${editingAtividadeId}/relatos`, {method:"POST", body: JSON.stringify(data)});
+      $("at-relato-texto").value=""; $("at-relato-pendencia").checked=false;
+      $("at-relato-pendencia-campos").style.display="none";
+      $("at-relato-pend-responsavel").value=""; $("at-relato-pend-prazo").value=""; $("at-relato-pend-limite").value="";
+      await refreshRelatos();
+      toast("Relato adicionado.");
+    }catch(e){}
+  });
+}
+
+function openAtividadeModal(atividade){
+  editingAtividadeId = atividade ? atividade.id : null;
+  $("at-modal-title").textContent = atividade ? "Editar atividade" : "Nova atividade";
+  $("at-delete").style.visibility = atividade ? "visible" : "hidden";
+  $("at-codigo").value = atividade?.codigo_wbs || "";
+  $("at-nome").value = atividade?.nome || "";
+  $("at-descricao").value = atividade?.descricao || "";
+  $("at-etapa").value = atividade?.etapa_id || ETAPAS[0]?.id || "";
+  $("at-frente").value = atividade?.frente_trabalho_id || FRENTES[0]?.id || "";
+  $("at-tipo").value = atividade?.tipo_atividade_elementar_id || "";
+  // Reconstrói a partir de REQUISITOS a cada abertura — evita mostrar a lista desatualizada
+  // caso um requisito tenha sido criado/editado na aba "Requisitos" desde o carregamento inicial.
+  $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
+  $("at-requisito-tr").value = atividade?.requisito_tr_id || "";
+  $("at-responsavel-techne").value = atividade?.responsavel_techne_id || "";
+  $("at-responsavel-cliente").value = atividade?.responsavel_cliente_id || "";
+  $("at-status").value = atividade?.status || "Não iniciada";
+  $("at-prioridade").value = atividade?.prioridade || "Média";
+  $("at-percentual").value = atividade?.percentual_concluido ?? 0;
+  $("at-master").checked = !!atividade?.eh_atividade_master;
+  $("at-prazo").value = atividade?.prazo_horas ?? "";
+  $("at-horas-real").value = atividade?.horas_realizadas ?? "";
+  $("at-dtini-prev").value = atividade?.dtini_prev || "";
+  $("at-dtfim-prev").value = atividade?.dtfim_prev || "";
+  $("at-dtini-real").value = atividade?.dtini_real || "";
+  $("at-dtfim-real").value = atividade?.dtfim_real || "";
+  $("at-observacoes").value = atividade?.observacoes || "";
+  $("at-relato-texto").value=""; $("at-relato-pendencia").checked=false; $("at-relato-pendencia-campos").style.display="none";
+  $("at-relato-pend-responsavel").value=""; $("at-relato-pend-prazo").value=""; $("at-relato-pend-limite").value="";
+  switchPane($("overlay-atividade"), "detalhes");
+  $("overlay-atividade").hidden = false;
+  if(atividade){ refreshDeps(); refreshReqs(); refreshAnexos(); refreshRelatos(); }
+  else {
+    $("at-deps-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar dependências.</li>`;
+    $("at-reqs-list").innerHTML=""; $("at-anexos-list").innerHTML="";
+    $("at-relatos-list").innerHTML = `<li class="muted">Salve a atividade antes de registrar relatos.</li>`;
+    $("at-relatos-hint").textContent = "";
+  }
+}
+function closeAtividadeModal(){ $("overlay-atividade").hidden = true; editingAtividadeId=null; }
+
+async function saveAtividade(){
+  const data = {
+    codigo_wbs: $("at-codigo").value.trim(), nome: $("at-nome").value.trim(), descricao: $("at-descricao").value.trim(),
+    etapa_id: $("at-etapa").value, frente_trabalho_id: $("at-frente").value, tipo_atividade_elementar_id: $("at-tipo").value || null,
+    requisito_tr_id: $("at-requisito-tr").value || null,
+    responsavel_techne_id: $("at-responsavel-techne").value || null,
+    responsavel_cliente_id: $("at-responsavel-cliente").value || null,
+    status: $("at-status").value, prioridade: $("at-prioridade").value,
+    percentual_concluido: Number($("at-percentual").value || 0), prazo_horas: $("at-prazo").value ? Number($("at-prazo").value) : null,
+    eh_atividade_master: $("at-master").checked,
+    horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null,
+    dtini_prev: $("at-dtini-prev").value || null, dtfim_prev: $("at-dtfim-prev").value || null,
+    dtini_real: $("at-dtini-real").value || null, dtfim_real: $("at-dtfim-real").value || null,
+    observacoes: $("at-observacoes").value.trim(),
+  };
+  if(!data.nome){ toast("Informe o nome da atividade.", true); return; }
+  if(!editingAtividadeId) data.projeto_id = PROJETO.id;
+  try{
+    if(editingAtividadeId) await api(`/atividades/${editingAtividadeId}`, {method:"PUT", body: JSON.stringify(data)});
+    else await api("/atividades", {method:"POST", body: JSON.stringify(data)});
+    await loadAtividades(); renderCronograma(); renderDashboard(); closeAtividadeModal();
+    toast("Atividade salva.");
+  }catch(e){
+    // Erro mais comum aqui: status exige relato e ainda não há nenhum registrado.
+    // Leva o usuário direto pra aba certa em vez de deixá-lo caçar o problema.
+    if(STATUS_EXIGE_RELATO.has(data.status)) switchPane($("overlay-atividade"), "relatos");
+  }
+}
+
+async function refreshDeps(){
+  const deps = await api(`/atividades/${editingAtividadeId}/dependencias`);
+  $("at-deps-list").innerHTML = deps.length ? deps.map(d=>`
+    <li><span>${esc(d.predecessora_nome)} <span class="muted">(${d.tipo}${d.lag_horas?`, lag ${d.lag_horas}h`:''})</span></span>
+    <button class="btn ghost" data-dep="${d.id}">Remover</button></li>`).join("") : `<li class="muted">Nenhuma dependência.</li>`;
+  $("at-deps-list").querySelectorAll("button[data-dep]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/dependencias/${b.dataset.dep}`, {method:"DELETE"}); refreshDeps();
+  }));
+  $("at-dep-predecessora").innerHTML = ATIVIDADES.filter(a=>a.id!==editingAtividadeId).map(a=>`<option value="${a.id}">${esc(a.codigo_wbs||"")} ${esc(a.nome)}</option>`).join("");
+}
+async function refreshReqs(){
+  const reqs = await api(`/atividades/${editingAtividadeId}/requisitos`);
+  $("at-reqs-list").innerHTML = reqs.length ? reqs.map(r=>`
+    <li><span class="mono">${esc(r.codigo)}</span><span style="flex:1;margin:0 8px;">${esc(r.titulo)}</span>
+    <button class="btn ghost" data-req="${r.id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum requisito vinculado.</li>`;
+  $("at-reqs-list").querySelectorAll("button[data-req]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/atividades/${editingAtividadeId}/requisitos/${b.dataset.req}`, {method:"DELETE"}); refreshReqs();
+  }));
+  const linked = new Set(reqs.map(r=>r.id));
+  $("at-req-add-select").innerHTML = REQUISITOS.filter(r=>!linked.has(r.id)).map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
+}
+async function refreshAnexos(){
+  const anexos = await api(`/anexos?entidade_tipo=atividade&entidade_id=${editingAtividadeId}`);
+  $("at-anexos-list").innerHTML = anexos.length ? anexos.map(a=>`
+    <li><a href="/api/anexos/${a.id}/download" style="color:var(--accent-strong);">${esc(a.nome_original)}</a>
+    <button class="btn ghost" data-anexo="${a.id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum anexo.</li>`;
+  $("at-anexos-list").querySelectorAll("button[data-anexo]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/anexos/${b.dataset.anexo}`, {method:"DELETE"}); refreshAnexos();
+  }));
+}
+async function refreshRelatos(){
+  const relatos = await api(`/atividades/${editingAtividadeId}/relatos`);
+  const statusAtual = $("at-status").value;
+  $("at-relatos-hint").textContent = STATUS_EXIGE_RELATO.has(statusAtual)
+    ? `Status "${statusAtual}" exige ao menos um relato de andamento para poder ser salvo.`
+    : `Relatos ficam registrados aqui de forma permanente (não podem ser editados ou apagados depois).`;
+  $("at-relatos-list").innerHTML = relatos.length ? relatos.map(r=>{
+    const autor = r.autor_cadastro_nome || r.autor_nome || "—";
+    let pendBlock = "";
+    if(r.eh_pendencia){
+      const resp = r.pendencia_responsavel_nome || "—";
+      pendBlock = `<div style="margin-top:6px;">
+        ${pill(r.pendencia_resolvida ? "Pendência resolvida" : "Pendência aberta", r.pendencia_resolvida ? "ok" : "danger")}
+        <span class="muted" style="margin-left:8px;">Responsável: ${esc(resp)} · Prazo possível: ${fmtDate(r.pendencia_prazo_possivel)} · Data limite: ${fmtDate(r.pendencia_data_limite)}</span>
+        ${!r.pendencia_resolvida ? `<button class="btn ghost" data-resolver="${r.id}" style="margin-left:8px;">Marcar como resolvida</button>` : ""}
+      </div>`;
+    }
+    return `<li style="display:block;">
+      <div style="display:flex;justify-content:space-between;gap:10px;">
+        <span style="font-weight:600;">${esc(autor)}</span>
+        <span class="muted mono" style="font-size:11.5px;">${fmtDateTime(r.criado_em)}</span>
+      </div>
+      <div style="margin-top:4px;white-space:pre-wrap;">${esc(r.texto)}</div>
+      ${pendBlock}
+    </li>`;
+  }).join("") : `<li class="muted">Nenhum relato registrado ainda.</li>`;
+  $("at-relatos-list").querySelectorAll("button[data-resolver]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/relatos/${b.dataset.resolver}/resolver`, {method:"PATCH"}); await refreshRelatos();
+  }));
+}
+
+// ================= MODAL REQUISITO =================
+function wireRequisitoModal(){
+  $("btn-new-requisito").addEventListener("click", ()=>openRequisitoModal(null));
+  $("req-close").addEventListener("click", closeRequisitoModal);
+  $("req-cancel").addEventListener("click", closeRequisitoModal);
+  $("overlay-requisito").addEventListener("click", e=>{ if(e.target.id==="overlay-requisito") closeRequisitoModal(); });
+  $("req-save").addEventListener("click", saveRequisito);
+}
+function openRequisitoModal(r){
+  editingRequisitoId = r ? r.id : null;
+  $("req-modal-title").textContent = r ? "Editar requisito" : "Novo requisito";
+  $("req-codigo").value=r?.codigo||""; $("req-titulo").value=r?.titulo||""; $("req-descricao").value=r?.descricao||"";
+  $("req-tipo").value=r?.tipo_requisito||"Funcional"; $("req-modulo").value=r?.modulo_origem||"";
+  $("req-frente").value=r?.frente_trabalho_id||""; $("req-responsavel").value=r?.responsavel_id||"";
+  $("req-classificacao").value=r?.classificacao||"Obrigatório"; $("req-atendimento").value=r?.atendimento||"A analisar";
+  $("req-status").value=r?.status||"Não iniciado"; $("req-cobranca").value=r?.cobranca||"N/A";
+  $("req-prioridade").value=r?.prioridade||"Média"; $("req-data").value=r?.data_levantamento||"";
+  $("req-observacoes").value=r?.observacoes||"";
+  $("overlay-requisito").hidden=false;
+}
+function closeRequisitoModal(){ $("overlay-requisito").hidden=true; editingRequisitoId=null; }
+async function saveRequisito(){
+  const data = {
+    codigo:$("req-codigo").value.trim(), titulo:$("req-titulo").value.trim(), descricao:$("req-descricao").value.trim(),
+    tipo_requisito:$("req-tipo").value, modulo_origem:$("req-modulo").value.trim()||null,
+    frente_trabalho_id:$("req-frente").value||null, responsavel_id:$("req-responsavel").value||null,
+    classificacao:$("req-classificacao").value, atendimento:$("req-atendimento").value, status:$("req-status").value,
+    cobranca:$("req-cobranca").value, prioridade:$("req-prioridade").value, data_levantamento:$("req-data").value||null,
+    observacoes:$("req-observacoes").value.trim(),
+  };
+  if(!data.codigo || !data.titulo){ toast("Informe código e título.", true); return; }
+  if(!editingRequisitoId) data.projeto_id = PROJETO.id;
+  try{
+    if(editingRequisitoId) await api(`/requisitos/${editingRequisitoId}`, {method:"PUT", body: JSON.stringify(data)});
+    else await api("/requisitos", {method:"POST", body: JSON.stringify(data)});
+    await loadRequisitos(); renderRequisitos(); closeRequisitoModal(); toast("Requisito salvo.");
+  }catch(e){}
+}
+
+// ================= MODAL PROJETO =================
+let projetoModalInitial = false;
+
+function wireProjetoModal(){
+  const modal = $("overlay-projeto");
+  modal.querySelector(".modal-tabs").addEventListener("click", e=>{
+    const b=e.target.closest("button[data-pane]"); if(!b) return;
+    if(b.dataset.pane==="anexos" && !PROJETO) return; // ainda não salvo, sem id pra anexar
+    switchPane(modal, b.dataset.pane);
+  });
+  $("proj-close").addEventListener("click", closeProjetoModal);
+  $("proj-cancel").addEventListener("click", closeProjetoModal);
+  $("proj-save").addEventListener("click", saveProjeto);
+  $("btn-edit-projeto").addEventListener("click", ()=>openProjetoModal(false));
+  $("proj-anexo-add").addEventListener("click", async ()=>{
+    const file = $("proj-anexo-file").files[0]; if(!file || !PROJETO) return;
+    const fd = new FormData(); fd.append("entidade_tipo","projeto"); fd.append("entidade_id", PROJETO.id); fd.append("file", file);
+    await api("/anexos", {method:"POST", body: fd});
+    $("proj-anexo-file").value=""; await refreshProjetoAnexos();
+  });
+}
+
+function openProjetoModal(isInitial){
+  projetoModalInitial = isInitial;
+  const p = isInitial ? null : PROJETO;
+  $("proj-modal-title").textContent = isInitial ? "Cadastro do projeto" : "Dados do projeto";
+  $("proj-modal-hint").textContent = isInitial ? "Preencha os dados para começar a usar o Ergon PM." : "";
+  $("proj-close").style.visibility = isInitial ? "hidden" : "visible";
+  $("proj-cancel").style.visibility = isInitial ? "hidden" : "visible";
+  $("proj-tab-anexos").style.opacity = p ? "1" : ".5";
+
+  $("proj-sigla").value = p?.sigla || "";
+  $("proj-prazo-meses").value = p?.prazo_total_meses ?? "";
+  $("proj-nome").value = p?.nome || "";
+  $("proj-instituicao").value = p?.cliente || "";
+  $("proj-descricao").value = p?.descricao || "";
+  $("proj-fiscal").value = p?.fiscal_projeto || "";
+  $("proj-gestor").value = p?.gestor_projeto || "";
+  $("proj-gerente-cliente").value = p?.gerente_projeto_cliente || "";
+  $("proj-gerente-techne").value = p?.gerente_projeto_techne || "";
+  $("proj-lider-techne").value = p?.lider_projeto_techne || "";
+  $("proj-data-abertura").value = p?.data_abertura || "";
+  $("proj-horas-dia").value = p?.horas_dia_util ?? 8;
+  $("proj-data-inicio").value = p?.data_inicio || "";
+  $("proj-data-inicio-real").value = p?.data_inicio_real || "";
+  $("proj-data-fim").value = p?.data_fim_prevista || "";
+
+  switchPane($("overlay-projeto"), "detalhes");
+  $("overlay-projeto").hidden = false;
+  if(p) refreshProjetoAnexos();
+  else $("proj-anexos-list").innerHTML = `<li class="muted">Salve o projeto antes de anexar arquivos.</li>`;
+}
+
+function closeProjetoModal(){
+  if(projetoModalInitial && !PROJETO) return; // não deixa fechar sem ter criado o projeto ainda
+  $("overlay-projeto").hidden = true;
+}
+
+async function saveProjeto(){
+  const data = {
+    sigla: $("proj-sigla").value.trim() || null,
+    nome: $("proj-nome").value.trim(),
+    cliente: $("proj-instituicao").value.trim(),
+    descricao: $("proj-descricao").value.trim() || null,
+    fiscal_projeto: $("proj-fiscal").value.trim() || null,
+    gestor_projeto: $("proj-gestor").value.trim() || null,
+    gerente_projeto_cliente: $("proj-gerente-cliente").value.trim() || null,
+    gerente_projeto_techne: $("proj-gerente-techne").value.trim() || null,
+    lider_projeto_techne: $("proj-lider-techne").value.trim() || null,
+    data_abertura: $("proj-data-abertura").value || null,
+    horas_dia_util: Number($("proj-horas-dia").value || 8),
+    data_inicio: $("proj-data-inicio").value || null,
+    data_inicio_real: $("proj-data-inicio-real").value || null,
+    data_fim_prevista: $("proj-data-fim").value || null,
+    prazo_total_meses: $("proj-prazo-meses").value ? Number($("proj-prazo-meses").value) : null,
+  };
+  if(!data.nome || !data.cliente){ toast("Informe ao menos o nome do projeto e a instituição.", true); return; }
+  try{
+    if(PROJETO){
+      PROJETO = await api(`/projetos/${PROJETO.id}`, {method:"PUT", body: JSON.stringify(data)});
+      $("proj-label").textContent = projLabelText();
+      toast("Dados do projeto atualizados.");
+      closeProjetoModal();
+    } else {
+      PROJETO = await api("/projetos", {method:"POST", body: JSON.stringify(data)});
+      $("proj-label").textContent = projLabelText();
+      toast("Projeto criado.");
+      $("proj-tab-anexos").style.opacity = "1";
+      $("proj-close").style.visibility = "visible";
+      $("proj-cancel").style.visibility = "visible";
+      $("proj-modal-title").textContent = "Dados do projeto";
+      $("proj-modal-hint").textContent = "Projeto criado — você já pode anexar arquivos ou fechar e começar a usar o sistema.";
+      refreshProjetoAnexos();
+      await afterProjetoReady();
+    }
+  }catch(e){}
+}
+
+async function refreshProjetoAnexos(){
+  if(!PROJETO) return;
+  const anexos = await api(`/anexos?entidade_tipo=projeto&entidade_id=${PROJETO.id}`);
+  $("proj-anexos-list").innerHTML = anexos.length ? anexos.map(a=>`
+    <li><a href="/api/anexos/${a.id}/download" style="color:var(--accent-strong);">${esc(a.nome_original)}</a>
+    <button class="btn ghost" data-anexo="${a.id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum anexo.</li>`;
+  $("proj-anexos-list").querySelectorAll("button[data-anexo]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/anexos/${b.dataset.anexo}`, {method:"DELETE"}); refreshProjetoAnexos();
+  }));
+}
+
+// ================= IMPORTAÇÃO CSV DE REQUISITOS =================
+function setupCsvTemplateLink(){
+  const header = "codigo;titulo;descricao;frente;classificacao;atendimento;status;prioridade;cobranca;data_levantamento;observacoes";
+  const exemplo = "TR-001;Levantamento de Grupos de Vencimento;Texto literal do edital...;Parametrização;Obrigatório;A analisar;Não iniciado;Média;N/A;2026-09-10;";
+  const csvContent = "﻿" + header + "\n" + exemplo + "\n";
+  const blob = new Blob([csvContent], {type: "text/csv;charset=utf-8;"});
+  $("link-modelo-csv").href = URL.createObjectURL(blob);
+}
+
+function wireImportCsv(){
+  $("btn-import-csv").addEventListener("click", ()=> $("rf-csv-file").click());
+  $("rf-csv-file").addEventListener("change", async ()=>{
+    const file = $("rf-csv-file").files[0]; if(!file) return;
+    const fd = new FormData(); fd.append("projeto_id", PROJETO.id); fd.append("file", file);
+    try{
+      const r = await api("/requisitos/importar-csv", {method:"POST", body: fd});
+      let msg = `Importação concluída: ${r.inseridos} novo(s), ${r.atualizados} atualizado(s).`;
+      if(r.erros && r.erros.length) msg += ` ${r.erros.length} observação(ões) — veja o console.`;
+      toast(msg, false);
+      if(r.erros && r.erros.length) console.warn("Importação de requisitos — observações:", r.erros);
+      await loadRequisitos(); renderRequisitos();
+    }catch(e){}
+    $("rf-csv-file").value = "";
+  });
+}
+
+// ================= IMPORTAÇÃO DE REQUISITOS A PARTIR DO DOCUMENTO DO TR =================
+let trPreviewItens = [];
+let trConfirmando = false;
+
+function wireImportDocumentoTr(){
+  $("btn-import-tr").addEventListener("click", openImportarTrModal);
+  $("tr-close").addEventListener("click", closeImportarTrModal);
+  $("tr-cancel").addEventListener("click", closeImportarTrModal);
+  $("overlay-importar-tr").addEventListener("click", e=>{ if(e.target.id==="overlay-importar-tr") closeImportarTrModal(); });
+  $("tr-analisar").addEventListener("click", analisarDocumentoTr);
+  $("tr-confirmar").addEventListener("click", confirmarImportacaoTr);
+  $("tr-check-all").addEventListener("change", ()=>{
+    const checked = $("tr-check-all").checked;
+    $("tr-preview-tbody").querySelectorAll("input[type=checkbox][data-idx]").forEach(cb=>{
+      cb.checked = checked;
+      trPreviewItens[Number(cb.dataset.idx)]._selecionado = checked;
+    });
+  });
+  $("tr-preview-search").addEventListener("input", renderTrPreviewTable);
+  $("tr-preview-tipo").addEventListener("change", renderTrPreviewTable);
+}
+
+function openImportarTrModal(){
+  trPreviewItens = [];
+  $("tr-file").value = "";
+  $("tr-step-upload").hidden = false;
+  $("tr-step-preview").hidden = true;
+  $("tr-analisar").hidden = false;
+  $("tr-confirmar").hidden = true;
+  $("tr-foot-hint").textContent = "";
+  $("overlay-importar-tr").hidden = false;
+}
+function closeImportarTrModal(){ $("overlay-importar-tr").hidden = true; }
+
+async function analisarDocumentoTr(){
+  const file = $("tr-file").files[0];
+  if(!file){ toast("Selecione o arquivo do documento do TR.", true); return; }
+  const fd = new FormData(); fd.append("projeto_id", PROJETO.id); fd.append("file", file);
+  $("tr-analisar").disabled = true; $("tr-analisar").textContent = "Analisando…";
+  try{
+    const r = await api("/requisitos/importar-documento/preview", {method:"POST", body: fd});
+    trPreviewItens = (r.itens||[]).map(it=>({...it, _selecionado: !it.ja_existe}));
+    const resumo = r.resumo || {};
+    let avisosHtml = "";
+    if(resumo.baixa_confianca){
+      avisosHtml += `<div style="background:var(--danger-soft);color:var(--danger);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12.5px;">⚠ O documento não parece ter a estrutura típica de um TR de requisitos (catálogo de funcionalidades + anexo de requisitos técnicos). Confira com atenção antes de confirmar — pode ser que o arquivo enviado não seja o correto.</div>`;
+    }
+    if(r.avisos && r.avisos.length){
+      avisosHtml += `<ul class="muted" style="margin:0 0 10px 18px;font-size:12px;">${r.avisos.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`;
+    }
+    $("tr-avisos").innerHTML = avisosHtml;
+    $("tr-resumo").innerHTML = [
+      {l:"Total no documento", v: resumo.total ?? trPreviewItens.length},
+      {l:"Funcionais", v: resumo.funcionais ?? 0},
+      {l:"Não funcionais", v: resumo.nao_funcionais ?? 0},
+      {l:"Já existentes no projeto", v: resumo.ja_existentes ?? 0},
+    ].map(k=>`<div class="kpi"><div class="label">${k.l}</div><div class="value">${k.v}</div></div>`).join("");
+    $("tr-check-all").checked = trPreviewItens.every(it=>it._selecionado);
+    $("tr-preview-search").value = ""; $("tr-preview-tipo").value = "";
+    renderTrPreviewTable();
+    $("tr-step-upload").hidden = true;
+    $("tr-step-preview").hidden = false;
+    $("tr-analisar").hidden = true;
+    $("tr-confirmar").hidden = false;
+    $("tr-foot-hint").textContent = `${trPreviewItens.length} item(ns) encontrado(s) — desmarque o que não deve ser importado.`;
+  }catch(e){}
+  $("tr-analisar").disabled = false; $("tr-analisar").textContent = "Analisar documento";
+}
+
+function renderTrPreviewTable(){
+  const busca = $("tr-preview-search").value.trim().toLowerCase();
+  const tipo = $("tr-preview-tipo").value;
+  const linhas = trPreviewItens.map((it, idx)=>({it, idx})).filter(({it})=>{
+    if(tipo && it.tipo_requisito !== tipo) return false;
+    if(busca && !([it.codigo, it.titulo, it.descricao].join(" ").toLowerCase().includes(busca))) return false;
+    return true;
+  });
+  $("tr-preview-tbody").innerHTML = linhas.length ? linhas.map(({it, idx})=>`
+    <tr>
+      <td><input type="checkbox" data-idx="${idx}" ${it._selecionado ? "checked" : ""}></td>
+      <td class="mono">${esc(it.codigo)}${it.ja_existe ? ' <span class="muted" style="font-size:11px;">(já existe)</span>' : ""}</td>
+      <td>${pill(it.tipo_requisito||"Funcional", TIPO_REQ_COLOR[it.tipo_requisito]||"accent")}</td>
+      <td class="muted">${esc(it.modulo_origem||"—")}</td>
+      <td>${esc(it.titulo)}<div class="muted" style="font-size:11.5px;">${esc((it.descricao||"").slice(0,180))}${(it.descricao||"").length>180?"…":""}</div></td>
+    </tr>`).join("") : `<tr class="empty-row"><td colspan="5">Nenhum item corresponde ao filtro.</td></tr>`;
+  $("tr-preview-tbody").querySelectorAll("input[type=checkbox][data-idx]").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      trPreviewItens[Number(cb.dataset.idx)]._selecionado = cb.checked;
+      const visiveis = $("tr-preview-tbody").querySelectorAll("input[type=checkbox][data-idx]");
+      $("tr-check-all").checked = Array.from(visiveis).every(c=>c.checked);
+    });
+  });
+}
+
+async function confirmarImportacaoTr(){
+  if(trConfirmando) return;
+  const selecionados = trPreviewItens.filter(it=>it._selecionado);
+  if(!selecionados.length){ toast("Selecione ao menos um item para importar.", true); return; }
+  trConfirmando = true;
+  $("tr-confirmar").disabled = true; $("tr-confirmar").textContent = "Importando…";
+  try{
+    const r = await api("/requisitos/importar-documento/confirmar", {
+      method: "POST",
+      body: JSON.stringify({ projeto_id: PROJETO.id, itens: selecionados }),
+    });
+    toast(`Importação concluída: ${r.inseridos} novo(s), ${r.atualizados} atualizado(s).`);
+    await loadRequisitos(); renderRequisitos();
+    closeImportarTrModal();
+  }catch(e){}
+  trConfirmando = false;
+  $("tr-confirmar").disabled = false; $("tr-confirmar").textContent = "Confirmar importação";
+}
+
+// ================= IMPORTAÇÃO DE CRONOGRAMA (Excel/CSV) =================
+let crToken = null, crGruposEtapa = [], crGruposFrente = [], crConfirmando = false;
+
+function wireImportCronograma(){
+  $("btn-import-cronograma").addEventListener("click", openImportarCronogramaModal);
+  $("cr-close").addEventListener("click", closeImportarCronogramaModal);
+  $("cr-cancel").addEventListener("click", closeImportarCronogramaModal);
+  $("overlay-importar-cronograma").addEventListener("click", e=>{ if(e.target.id==="overlay-importar-cronograma") closeImportarCronogramaModal(); });
+  $("cr-analisar").addEventListener("click", analisarCronograma);
+  $("cr-confirmar").addEventListener("click", confirmarImportacaoCronograma);
+}
+
+function openImportarCronogramaModal(){
+  crToken = null; crGruposEtapa = []; crGruposFrente = [];
+  $("cr-file").value = "";
+  $("cr-avisos").innerHTML = ""; $("cr-resumo").innerHTML = "";
+  $("cr-step-upload").hidden = false;
+  $("cr-step-preview").hidden = true;
+  $("cr-analisar").hidden = false;
+  $("cr-confirmar").hidden = true;
+  $("cr-foot-hint").textContent = "";
+  $("overlay-importar-cronograma").hidden = false;
+}
+function closeImportarCronogramaModal(){ $("overlay-importar-cronograma").hidden = true; }
+
+async function analisarCronograma(){
+  const file = $("cr-file").files[0];
+  if(!file){ toast("Selecione o arquivo da planilha do cronograma.", true); return; }
+  const fd = new FormData(); fd.append("projeto_id", PROJETO.id); fd.append("file", file);
+  $("cr-analisar").disabled = true; $("cr-analisar").textContent = "Analisando…";
+  try{
+    // recarrega Etapas/Frentes na hora, pra oferecer as opções mais atuais no mapeamento
+    [ETAPAS, FRENTES] = await Promise.all([api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`)]);
+
+    const r = await api("/cronograma/importar/preview", {method:"POST", body: fd});
+    crToken = r.token;
+    crGruposEtapa = r.grupos_etapa || [];
+    crGruposFrente = r.grupos_frente || [];
+    const resumo = r.resumo || {};
+
+    let avisosHtml = "";
+    if(r.avisos && r.avisos.length){
+      avisosHtml = `<ul class="muted" style="margin:0 0 10px 18px;font-size:12px;">${r.avisos.slice(0,20).map(a=>`<li>${esc(a)}</li>`).join("")}</ul>`;
+      if(r.avisos.length>20) avisosHtml += `<p class="muted" style="font-size:12px;">+ ${r.avisos.length-20} outro(s) aviso(s) — veja o console.</p>`;
+      console.warn("Importação de cronograma — avisos:", r.avisos);
+    }
+    $("cr-avisos").innerHTML = avisosHtml;
+    $("cr-resumo").innerHTML = [
+      {l:"Atividades novas", v: resumo.atividades_novas ?? 0},
+      {l:"Atividades a atualizar", v: resumo.atividades_atualizar ?? 0},
+      {l:"Marcos novos", v: resumo.marcos_novos ?? 0},
+      {l:"Marcos a atualizar", v: resumo.marcos_atualizar ?? 0},
+      {l:"Dependências", v: resumo.dependencias ?? 0},
+      {l:"Durações aproximadas (dias/sem.→h)", v: resumo.horas_aproximadas ?? 0},
+    ].map(k=>`<div class="kpi"><div class="label">${k.l}</div><div class="value">${k.v}</div></div>`).join("");
+
+    renderCrGrupoTable("cr-grupos-etapa-tbody", crGruposEtapa, ETAPAS, "etapa_id_sugerida");
+    renderCrGrupoTable("cr-grupos-frente-tbody", crGruposFrente, FRENTES, "frente_id_sugerida");
+
+    $("cr-step-upload").hidden = true;
+    $("cr-step-preview").hidden = false;
+    $("cr-analisar").hidden = true;
+    $("cr-confirmar").hidden = false;
+    $("cr-foot-hint").textContent = "Confira o mapeamento de Etapa/Frente abaixo antes de confirmar.";
+  }catch(e){}
+  $("cr-analisar").disabled = false; $("cr-analisar").textContent = "Analisar planilha";
+}
+
+function renderCrGrupoTable(tbodyId, grupos, existentesList, chaveSugestao){
+  $(tbodyId).innerHTML = grupos.map(g=>{
+    const sugerida = g[chaveSugestao];
+    const options = [`<option value="__novo__" ${!sugerida?"selected":""}>— Criar nova —</option>`]
+      .concat(existentesList.map(e=>`<option value="${e.id}" ${e.id===sugerida?"selected":""}>${esc(e.nome)}</option>`));
+    return `<tr data-chave="${esc(g.chave)}">
+      <td>${esc(g.nome_planilha)}</td>
+      <td class="mono">${g.quantidade}</td>
+      <td><select class="cr-select" data-chave="${esc(g.chave)}">${options.join("")}</select></td>
+      <td><input type="text" class="cr-nome" data-chave="${esc(g.chave)}" value="${esc(g.nome_planilha)}" ${sugerida?"disabled":""}></td>
+    </tr>`;
+  }).join("") || `<tr class="empty-row"><td colspan="4">Nenhum grupo encontrado.</td></tr>`;
+  $(tbodyId).querySelectorAll("select.cr-select").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const nomeInput = sel.closest("tr").querySelector("input.cr-nome");
+      nomeInput.disabled = sel.value !== "__novo__";
+    });
+  });
+}
+
+function lerMapeamento(tbodyId){
+  const out = [];
+  $(tbodyId).querySelectorAll("tr[data-chave]").forEach(tr=>{
+    const chave = tr.dataset.chave;
+    const sel = tr.querySelector("select.cr-select");
+    const inp = tr.querySelector("input.cr-nome");
+    if(sel.value === "__novo__"){
+      out.push({chave, nome: (inp.value||"").trim() || undefined});
+    }else{
+      out.push({chave, etapa_id: sel.value, frente_id: sel.value});
+    }
+  });
+  return out;
+}
+
+async function confirmarImportacaoCronograma(){
+  if(crConfirmando || !crToken) return;
+  crConfirmando = true;
+  $("cr-confirmar").disabled = true; $("cr-confirmar").textContent = "Importando…";
+  try{
+    const mapeamentoEtapas = lerMapeamento("cr-grupos-etapa-tbody").map(m=> m.etapa_id ? {chave:m.chave, etapa_id:m.etapa_id} : {chave:m.chave, nome:m.nome});
+    const mapeamentoFrentes = lerMapeamento("cr-grupos-frente-tbody").map(m=> m.frente_id ? {chave:m.chave, frente_id:m.frente_id} : {chave:m.chave, nome:m.nome});
+    const r = await api("/cronograma/importar/confirmar", {
+      method: "POST",
+      body: JSON.stringify({ token: crToken, projeto_id: PROJETO.id, mapeamento_etapas: mapeamentoEtapas, mapeamento_frentes: mapeamentoFrentes }),
+    });
+    let msg = `Importação concluída: ${r.atividades_criadas} atividade(s) nova(s), ${r.atividades_atualizadas} atualizada(s), `
+      + `${r.marcos_criados} marco(s) novo(s), ${r.marcos_atualizados} atualizado(s), ${r.dependencias_criadas} dependência(s) nova(s).`;
+    if(r.avisos && r.avisos.length) msg += ` ${r.avisos.length} observação(ões) — veja o console.`;
+    if(r.erros && r.erros.length){ msg += ` ${r.erros.length} erro(s) — veja o console.`; console.warn("Importação de cronograma — erros:", r.erros); }
+    if(r.avisos && r.avisos.length) console.warn("Importação de cronograma — avisos:", r.avisos);
+    toast(msg, false);
+    [ETAPAS, FRENTES, TIPOS, RECURSOS] = await Promise.all([
+      api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`), api(`/tipos-atividade`), api(`/recursos`)
+    ]);
+    fillStaticSelects();
+    await loadAtividades(); renderCronograma();
+    [RISCOS, MARCOS] = await Promise.all([api(`/riscos?projeto_id=${PROJETO.id}`), api(`/marcos?projeto_id=${PROJETO.id}`)]);
+    closeImportarCronogramaModal();
+  }catch(e){}
+  crConfirmando = false;
+  $("cr-confirmar").disabled = false; $("cr-confirmar").textContent = "Confirmar importação";
+}
+
+// ================= REMOÇÃO TOTAL DO CRONOGRAMA =================
+// Ação destrutiva e irreversível: apaga atividades e marcos do projeto (e
+// tudo que depende deles em cascata — dependências, relatos, histórico).
+// Etapas/Frentes/Requisitos do TR/configurações do projeto não são
+// afetados. Por isso a confirmação exige digitar o nome exato do
+// projeto — conferido de novo no servidor antes de apagar qualquer coisa.
+let rcRemovendo = false;
+
+function wireRemoverCronograma(){
+  $("btn-remover-cronograma").addEventListener("click", abrirRemoverCronogramaModal);
+  $("rc-close").addEventListener("click", fecharRemoverCronogramaModal);
+  $("rc-cancel").addEventListener("click", fecharRemoverCronogramaModal);
+  $("overlay-remover-cronograma").addEventListener("click", e=>{ if(e.target.id==="overlay-remover-cronograma") fecharRemoverCronogramaModal(); });
+  $("rc-confirma-nome").addEventListener("input", ()=>{
+    $("rc-confirmar").disabled = $("rc-confirma-nome").value.trim() !== PROJETO.nome;
+  });
+  $("rc-confirmar").addEventListener("click", removerCronogramaConfirmado);
+}
+
+async function abrirRemoverCronogramaModal(){
+  $("rc-nome-projeto").textContent = PROJETO.nome;
+  $("rc-confirma-nome").value = "";
+  $("rc-confirmar").disabled = true;
+  $("rc-confirmar").textContent = "Remover cronograma inteiro";
+  $("rc-resumo").innerHTML = `<li class="muted">Carregando…</li>`;
+  $("overlay-remover-cronograma").hidden = false;
+  try{
+    const r = await api(`/cronograma/resumo-remocao?projeto_id=${PROJETO.id}`);
+    if(!r.atividades && !r.marcos){
+      $("rc-resumo").innerHTML = `<li class="muted">O cronograma deste projeto já está vazio — nada a remover.</li>`;
+    }else{
+      $("rc-resumo").innerHTML = [
+        [r.atividades, "atividade(s)"],
+        [r.marcos, "marco(s)"],
+        [r.dependencias, "dependência(s) entre atividades"],
+        [r.relatos, "relato(s) de andamento"],
+      ].map(([n,l])=>`<li><strong>${n}</strong> ${l}</li>`).join("");
+    }
+  }catch(e){
+    $("rc-resumo").innerHTML = `<li class="muted">Não foi possível carregar a prévia — confira sua conexão e tente de novo.</li>`;
+  }
+}
+function fecharRemoverCronogramaModal(){ $("overlay-remover-cronograma").hidden = true; }
+
+async function removerCronogramaConfirmado(){
+  if(rcRemovendo) return;
+  const digitado = $("rc-confirma-nome").value.trim();
+  if(digitado !== PROJETO.nome) return;
+  rcRemovendo = true;
+  $("rc-confirmar").disabled = true; $("rc-confirmar").textContent = "Removendo…";
+  try{
+    await api("/cronograma/remover-tudo", {
+      method: "POST",
+      body: JSON.stringify({ projeto_id: PROJETO.id, confirmacao: digitado }),
+    });
+    toast("Cronograma removido: todas as atividades e marcos deste projeto foram apagados.");
+    await Promise.all([loadAtividades(), loadRiscosMarcos()]);
+    renderDashboard(); renderCronograma(); renderRiscosMarcos();
+    fecharRemoverCronogramaModal();
+  }catch(e){}
+  rcRemovendo = false;
+  $("rc-confirmar").textContent = "Remover cronograma inteiro";
+  $("rc-confirmar").disabled = $("rc-confirma-nome").value.trim() !== PROJETO.nome;
+}
+
+// ================= RELATÓRIO EXECUTIVO (IA) =================
+// Conversor bem pequeno, NÃO é um parser de markdown genérico — só entende o
+// subconjunto que o backend pede à IA para usar (## título, "- " listas,
+// **negrito**/*itálico*, parágrafos separados por linha em branco). Ver o
+// PROMPT_TEMPLATE em backend/app/relatorio_executivo.py.
+function markdownSimplesParaHtml(md){
+  const linhas = (md||"").replace(/\r\n/g, "\n").split("\n");
+  let html = ""; let listaAberta = false;
+  const fecharLista = () => { if(listaAberta){ html += "</ul>"; listaAberta = false; } };
+  const inline = (t) => esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, "<em>$1</em>");
+  for(const linhaBruta of linhas){
+    const linha = linhaBruta.trim();
+    if(!linha){ fecharLista(); continue; }
+    if(linha.startsWith("## ")){ fecharLista(); html += `<h2>${inline(linha.slice(3))}</h2>`; }
+    else if(linha.startsWith("# ")){ fecharLista(); html += `<h2>${inline(linha.slice(2))}</h2>`; }
+    else if(linha.startsWith("- ") || linha.startsWith("* ")){
+      if(!listaAberta){ html += "<ul>"; listaAberta = true; }
+      html += `<li>${inline(linha.slice(2))}</li>`;
+    } else { fecharLista(); html += `<p>${inline(linha)}</p>`; }
+  }
+  fecharLista();
+  return html;
+}
+
+let reRelatorioAtual = null; // último relatório carregado/gerado (pra habilitar "Baixar PDF")
+
+function wireRelatorioExecutivo(){
+  $("btn-relatorio-executivo")?.addEventListener("click", abrirRelatorioExecutivoModal);
+  $("re-close").addEventListener("click", ()=>{ $("overlay-relatorio-executivo").hidden = true; });
+  $("overlay-relatorio-executivo").addEventListener("click", e=>{ if(e.target.id==="overlay-relatorio-executivo") $("overlay-relatorio-executivo").hidden = true; });
+  $("re-gerar").addEventListener("click", gerarRelatorioExecutivo);
+  $("re-baixar-pdf").addEventListener("click", ()=>{
+    if(reRelatorioAtual) window.open(`${API}/relatorios/executivo/${reRelatorioAtual.id}/pdf`, "_blank");
+  });
+  $("re-historico").addEventListener("change", async ()=>{
+    const id = $("re-historico").value;
+    if(!id) return;
+    const row = await api(`/relatorios/executivo/${id}`);
+    mostrarRelatorioExecutivo(row);
+  });
+}
+
+async function abrirRelatorioExecutivoModal(){
+  $("overlay-relatorio-executivo").hidden = false;
+  $("re-intro").hidden = false; $("re-loading").hidden = true; $("re-erro").hidden = true; $("re-conteudo").hidden = true;
+  $("re-baixar-pdf").hidden = true; $("re-gerar").textContent = "Gerar relatório"; $("re-gerar").disabled = false;
+  const semMaster = !ATIVIDADES.some(a=>a.eh_atividade_master);
+  $("re-master-aviso").textContent = semMaster ? "Nenhuma atividade marcada como ★ master ainda — a previsão de conclusão não será calculada." : "";
+  try{
+    const historico = await api(`/relatorios/executivo?projeto_id=${PROJETO.id}`);
+    $("re-historico").innerHTML = `<option value="">Relatórios anteriores…</option>` + historico.map(r=>
+      `<option value="${r.id}">${new Date(r.gerado_em).toLocaleString("pt-BR")}</option>`).join("");
+  }catch(e){ $("re-historico").innerHTML = `<option value="">Relatórios anteriores…</option>`; }
+}
+
+async function gerarRelatorioExecutivo(){
+  $("re-intro").hidden = true; $("re-conteudo").hidden = true; $("re-erro").hidden = true; $("re-loading").hidden = false;
+  $("re-gerar").disabled = true; $("re-baixar-pdf").hidden = true;
+  try{
+    const row = await api("/relatorios/executivo/gerar", {
+      method: "POST",
+      body: JSON.stringify({ projeto_id: PROJETO.id, gerado_por: "" }),
+    });
+    mostrarRelatorioExecutivo(row);
+    // Reflete o novo relatório no seletor de histórico sem precisar reabrir o modal.
+    const opt = document.createElement("option");
+    opt.value = row.id; opt.textContent = new Date(row.gerado_em).toLocaleString("pt-BR"); opt.selected = true;
+    $("re-historico").prepend(opt);
+  }catch(e){
+    $("re-loading").hidden = true;
+    $("re-erro").hidden = false;
+    $("re-erro").textContent = e.message || "Não foi possível gerar o relatório.";
+    $("re-gerar").disabled = false;
+  }
+}
+
+function mostrarRelatorioExecutivo(row){
+  reRelatorioAtual = row;
+  $("re-loading").hidden = true; $("re-erro").hidden = true; $("re-intro").hidden = true;
+  $("re-conteudo").hidden = false; $("re-baixar-pdf").hidden = false;
+  $("re-gerar").disabled = false; $("re-gerar").textContent = "Gerar novo relatório";
+  $("re-meta").textContent = `Gerado em ${new Date(row.gerado_em).toLocaleString("pt-BR")} · modelo: ${row.modelo_ia}`;
+  $("re-texto").innerHTML = markdownSimplesParaHtml(row.conteudo_md);
+}
+
+// ================= CONFIGURAÇÕES (CRUD genérico: Responsáveis, Etapas, Frentes, Tipos) =================
+const TIPO_VINCULO_COLOR = {"Techne":"accent","Cliente":"ok","Terceirizado":"warn"};
+const CONFIG_ENTIDADES = {
+  responsaveis: {
+    tituloSingular: "Responsável", tituloPlural: "Responsáveis", endpoint: "recursos", comProjeto: false,
+    ordenar: r => (r.nome||"").toLowerCase(),
+    colunas: [
+      {chave:"nome", rotulo:"Nome"},
+      {chave:"cargo", rotulo:"Cargo"},
+      {chave:"empresa", rotulo:"Empresa"},
+      {chave:"tipo_vinculo", rotulo:"Vínculo", render:v=>pill(v||"—", TIPO_VINCULO_COLOR[v]||"faint")},
+      {chave:"email", rotulo:"E-mail"},
+      {chave:"ativo", rotulo:"Status", render:v=>pill(v===false?"Inativo":"Ativo", v===false?"faint":"ok")},
+    ],
+    campos: [
+      {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
+      {chave:"tipo_vinculo", rotulo:"Vínculo", tipo:"select", opcoes:["Techne","Cliente","Terceirizado"], padrao:"Techne", obrigatorio:true},
+      {chave:"empresa", rotulo:"Empresa", tipo:"text", placeholder:"Ex: Techne, TSE, Consultoria XYZ"},
+      {chave:"cargo", rotulo:"Cargo", tipo:"text", placeholder:"Ex: Consultor de Folha, Analista de TI"},
+      {chave:"email", rotulo:"E-mail", tipo:"email"},
+      {chave:"telefone", rotulo:"Telefone", tipo:"text"},
+      {chave:"ativo", rotulo:"Ativo", tipo:"checkbox", padrao:true},
+    ],
+  },
+  etapas: {
+    tituloSingular: "Etapa", tituloPlural: "Etapas", endpoint: "etapas", comProjeto: true,
+    ordenar: r => r.numero,
+    colunas: [
+      {chave:"numero", rotulo:"Nº"},
+      {chave:"nome", rotulo:"Nome"},
+      {chave:"data_inicio_prev", rotulo:"Início previsto", render:fmtDate},
+      {chave:"data_fim_prev", rotulo:"Fim previsto", render:fmtDate},
+    ],
+    campos: [
+      {chave:"numero", rotulo:"Número", tipo:"number", obrigatorio:true},
+      {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
+      {chave:"descricao", rotulo:"Descrição", tipo:"textarea"},
+      {chave:"data_inicio_prev", rotulo:"Início previsto", tipo:"date"},
+      {chave:"data_fim_prev", rotulo:"Fim previsto", tipo:"date"},
+    ],
+  },
+  frentes: {
+    tituloSingular: "Frente de Trabalho", tituloPlural: "Frentes de Trabalho", endpoint: "frentes", comProjeto: true,
+    ordenar: r => r.ordem,
+    colunas: [
+      {chave:"ordem", rotulo:"Ordem"},
+      {chave:"nome", rotulo:"Nome"},
+      {chave:"cor_hex", rotulo:"Cor", render:v=>v?`<span style="display:inline-block;width:13px;height:13px;border-radius:4px;background:${esc(v)};vertical-align:middle;margin-right:6px;"></span>${esc(v)}`:"—"},
+      {chave:"ativo", rotulo:"Status", render:v=>pill(v===false?"Inativa":"Ativa", v===false?"faint":"ok")},
+    ],
+    campos: [
+      {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
+      {chave:"descricao", rotulo:"Descrição", tipo:"textarea"},
+      {chave:"cor_hex", rotulo:"Cor", tipo:"color", padrao:"#3b82f6"},
+      {chave:"ordem", rotulo:"Ordem de exibição", tipo:"number", padrao:0},
+      {chave:"ativo", rotulo:"Ativa", tipo:"checkbox", padrao:true},
+    ],
+  },
+  tipos: {
+    tituloSingular: "Tipo de Atividade Elementar", tituloPlural: "Tipos de Atividade Elementar", endpoint: "tipos-atividade", comProjeto: false,
+    ordenar: r => r.ordem,
+    colunas: [
+      {chave:"ordem", rotulo:"Ordem"},
+      {chave:"nome", rotulo:"Nome"},
+      {chave:"descricao", rotulo:"Descrição"},
+      {chave:"ativo", rotulo:"Status", render:v=>pill(v===false?"Inativo":"Ativo", v===false?"faint":"ok")},
+    ],
+    campos: [
+      {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
+      {chave:"descricao", rotulo:"Descrição", tipo:"textarea"},
+      {chave:"ordem", rotulo:"Ordem de exibição", tipo:"number", padrao:0},
+      {chave:"ativo", rotulo:"Ativo", tipo:"checkbox", padrao:true},
+    ],
+  },
+  usuarios: {
+    tituloSingular: "Usuário", tituloPlural: "Usuários", endpoint: "usuarios", comProjeto: false,
+    // Sem criação nem exclusão por aqui: o cadastro é feito pelo autocadastro
+    // (tela de login > "Primeiro acesso"), e desativar acesso é feito pelo
+    // campo "Ativo" abaixo, em vez de excluir o registro.
+    semCriar: true, semExcluir: true,
+    ordenar: r => (r.nome||"").toLowerCase(),
+    colunas: [
+      {chave:"nome", rotulo:"Nome"},
+      {chave:"email", rotulo:"E-mail"},
+      {chave:"cargo", rotulo:"Cargo"},
+      {chave:"empresa", rotulo:"Empresa"},
+      {chave:"telefone", rotulo:"Telefone"},
+      {chave:"recebe_relatorio_executivo", rotulo:"Rel. Executivo", render:v=>pill(v?"Sim":"Não", v?"ok":"faint")},
+      {chave:"recebe_notificacao_whatsapp", rotulo:"WhatsApp", render:v=>pill(v?"Sim":"Não", v?"ok":"faint")},
+      {chave:"ativo", rotulo:"Status", render:v=>pill(v===false?"Inativo":"Ativo", v===false?"faint":"ok")},
+    ],
+    campos: [
+      {chave:"email", rotulo:"E-mail (login)", tipo:"readonly"},
+      {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
+      {chave:"telefone", rotulo:"Telefone", tipo:"text", obrigatorio:true},
+      {chave:"empresa", rotulo:"Empresa", tipo:"text", obrigatorio:true},
+      {chave:"cargo", rotulo:"Cargo", tipo:"text", obrigatorio:true},
+      {chave:"recebe_relatorio_executivo", rotulo:"Recebe Relatório Executivo", tipo:"checkbox", padrao:true},
+      {chave:"recebe_notificacao_whatsapp", rotulo:"Recebe notificação WhatsApp", tipo:"checkbox", padrao:true},
+      {chave:"ativo", rotulo:"Ativo (acesso liberado)", tipo:"checkbox", padrao:true},
+    ],
+  },
+};
+let cfgAbaAtual = "responsaveis";
+let cfgEditandoId = null;
+
+function cfgDados(aba){
+  return {responsaveis: RECURSOS, etapas: ETAPAS, frentes: FRENTES, tipos: TIPOS, usuarios: USUARIOS}[aba];
+}
+
+function wireConfiguracoes(){
+  $("cfg-tabs").addEventListener("click", e=>{
+    const b = e.target.closest("button[data-cfg]"); if(!b) return;
+    cfgAbaAtual = b.dataset.cfg;
+    document.querySelectorAll("#cfg-tabs button").forEach(x=>x.classList.toggle("active", x===b));
+    renderConfigTable();
+  });
+  $("cfg-add").addEventListener("click", ()=>openConfigModal(null));
+  $("cfg-close").addEventListener("click", closeConfigModal);
+  $("cfg-cancel").addEventListener("click", closeConfigModal);
+  $("overlay-config").addEventListener("click", e=>{ if(e.target.id==="overlay-config") closeConfigModal(); });
+  $("cfg-save").addEventListener("click", saveConfigItem);
+  $("cfg-delete").addEventListener("click", ()=>{
+    const def = CONFIG_ENTIDADES[cfgAbaAtual];
+    askConfirm(`Excluir este(a) ${def.tituloSingular.toLowerCase()}? Isso não pode ser desfeito.`, async ()=>{
+      try{
+        await api(`/${def.endpoint}/${cfgEditandoId}`, {method:"DELETE"});
+        toast(`${def.tituloSingular} excluído(a).`);
+        closeConfigModal();
+        await reloadConfigEntidades();
+      }catch(e){}
+    });
+  });
+}
+
+function renderConfigTable(){
+  const ehParametros = cfgAbaAtual === "parametros";
+  $("cfg-add-wrap").hidden = ehParametros;
+  $("cfg-table-wrap").hidden = ehParametros;
+  $("cfg-parametros-pane").hidden = !ehParametros;
+  if(ehParametros){ renderParametrosPane(); return; }
+
+  const def = CONFIG_ENTIDADES[cfgAbaAtual];
+  $("cfg-add").style.display = def.semCriar ? "none" : "";
+  $("cfg-add").textContent = `+ Novo(a) ${def.tituloSingular.toLowerCase()}`;
+  $("cfg-thead").innerHTML = `<tr>${def.colunas.map(c=>`<th>${esc(c.rotulo)}</th>`).join("")}</tr>`;
+  const linhas = [...cfgDados(cfgAbaAtual)].sort((a,b)=>{
+    const va=def.ordenar(a), vb=def.ordenar(b);
+    return va<vb?-1:va>vb?1:0;
+  });
+  $("cfg-tbody").innerHTML = linhas.length ? linhas.map(r=>`
+    <tr class="clickable" data-id="${r.id}">
+      ${def.colunas.map(c=>`<td>${c.render ? c.render(r[c.chave]) : esc(r[c.chave] ?? "—")}</td>`).join("")}
+    </tr>`).join("") : `<tr class="empty-row"><td colspan="${def.colunas.length}">Nenhum registro cadastrado.</td></tr>`;
+  $("cfg-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>openConfigModal(byId(cfgDados(cfgAbaAtual), tr.dataset.id)));
+  });
+}
+
+function cfgFieldHtml(campo, valorAtual){
+  const id = `cfg-f-${campo.chave}`;
+  const val = valorAtual !== undefined && valorAtual !== null ? valorAtual : (campo.padrao !== undefined ? campo.padrao : "");
+  if(campo.tipo === "readonly"){
+    return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="text" value="${esc(val)}" disabled></div>`;
+  }
+  if(campo.tipo === "select"){
+    return `<div class="field"><label>${esc(campo.rotulo)}</label><select id="${id}">${campo.opcoes.map(o=>`<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o)}</option>`).join("")}</select></div>`;
+  }
+  if(campo.tipo === "checkbox"){
+    return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="checkbox" style="width:18px;height:18px;" ${val?"checked":""}></div>`;
+  }
+  if(campo.tipo === "textarea"){
+    return `<div class="field full"><label>${esc(campo.rotulo)}</label><textarea id="${id}">${esc(val)}</textarea></div>`;
+  }
+  const ph = campo.placeholder ? ` placeholder="${esc(campo.placeholder)}"` : "";
+  return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="${campo.tipo}" value="${esc(val)}"${ph}></div>`;
+}
+
+function openConfigModal(row){
+  const def = CONFIG_ENTIDADES[cfgAbaAtual];
+  if(!row && def.semCriar) return; // esta aba não permite criar por aqui (ver comentário na definição)
+  cfgEditandoId = row ? row.id : null;
+  $("cfg-modal-title").textContent = row ? `Editar ${def.tituloSingular.toLowerCase()}` : `Novo(a) ${def.tituloSingular.toLowerCase()}`;
+  $("cfg-delete").style.visibility = (row && !def.semExcluir) ? "visible" : "hidden";
+  $("cfg-fields").innerHTML = def.campos.map(c => cfgFieldHtml(c, row ? row[c.chave] : undefined)).join("");
+  $("overlay-config").hidden = false;
+}
+function closeConfigModal(){ $("overlay-config").hidden = true; cfgEditandoId = null; }
+
+async function saveConfigItem(){
+  const def = CONFIG_ENTIDADES[cfgAbaAtual];
+  const data = {};
+  for(const c of def.campos){
+    const el = $(`cfg-f-${c.chave}`);
+    if(c.tipo === "checkbox") data[c.chave] = el.checked;
+    else if(c.tipo === "number") data[c.chave] = el.value === "" ? null : Number(el.value);
+    else data[c.chave] = el.value.trim ? el.value.trim() : el.value;
+  }
+  for(const c of def.campos){
+    if(c.obrigatorio && (data[c.chave] === "" || data[c.chave] === null || data[c.chave] === undefined)){
+      toast(`Preencha o campo "${c.rotulo}".`, true); return;
+    }
+  }
+  if(!cfgEditandoId && def.comProjeto) data.projeto_id = PROJETO.id;
+  try{
+    if(cfgEditandoId) await api(`/${def.endpoint}/${cfgEditandoId}`, {method:"PUT", body: JSON.stringify(data)});
+    else await api(`/${def.endpoint}`, {method:"POST", body: JSON.stringify(data)});
+    toast(`${def.tituloSingular} salvo(a).`);
+    closeConfigModal();
+    await reloadConfigEntidades();
+  }catch(e){}
+}
+
+async function reloadConfigEntidades(){
+  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS] = await Promise.all([
+    api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
+    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`)
+  ]);
+  fillStaticSelects();
+  renderConfigTable();
+  // nomes/ativo podem ter mudado — atualiza o que já está carregado na tela
+  await loadAtividades();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos();
+}
+
+// ================= Parâmetros do site (Configurações > Parâmetros) =================
+// Logo + nome da empresa (globais, tabela parametros_site) e tema da página
+// (pessoal, salvo só no navegador — ver o <script> de restauração no <head>).
+const TEMA_STORAGE_KEY = "ergonTema";
+
+function temaAtual(){
+  try{ return localStorage.getItem(TEMA_STORAGE_KEY) || "auto"; }catch(e){ return "auto"; }
+}
+
+function aplicarTema(valor){
+  if(valor === "light" || valor === "dark") document.documentElement.dataset.theme = valor;
+  else delete document.documentElement.dataset.theme;
+}
+
+function urlLogoParametros(){
+  if(!PARAMETROS || !PARAMETROS.logo_arquivo) return null;
+  return `${API}/parametros/${PARAMETROS.id}/logo?f=${encodeURIComponent(PARAMETROS.logo_arquivo)}`;
+}
+
+function aplicarMarcaNoTopo(){
+  const url = urlLogoParametros();
+  const logoEl = $("topbar-logo");
+  if(url){ logoEl.src = url; logoEl.hidden = false; }
+  else { logoEl.src = ""; logoEl.hidden = true; }
+
+  const empresaEl = $("topbar-empresa");
+  const nome = PARAMETROS && PARAMETROS.nome_empresa ? PARAMETROS.nome_empresa.trim() : "";
+  if(nome){ empresaEl.textContent = nome; empresaEl.hidden = false; }
+  else { empresaEl.textContent = ""; empresaEl.hidden = true; }
+}
+
+function renderParametrosPane(){
+  if(!PARAMETROS) return; // ainda carregando (afterProjetoReady ainda não terminou)
+  $("param-nome-empresa").value = PARAMETROS.nome_empresa || "";
+  const url = urlLogoParametros();
+  $("param-logo-preview").src = url || "";
+  $("param-logo-preview").hidden = !url;
+  $("param-logo-placeholder").hidden = !!url;
+  $("param-tema").value = temaAtual();
+}
+
+function wireParametros(){
+  $("param-salvar").addEventListener("click", async ()=>{
+    const nome = $("param-nome-empresa").value.trim();
+    if(!nome){ toast('Preencha o campo "Nome da empresa".', true); return; }
+    try{
+      PARAMETROS = await api(`/parametros/${PARAMETROS.id}`, {method:"PUT", body: JSON.stringify({nome_empresa: nome})});
+      toast("Parâmetros salvos.");
+      aplicarMarcaNoTopo();
+    }catch(e){}
+  });
+
+  $("param-logo-file").addEventListener("change", async ()=>{
+    const file = $("param-logo-file").files[0];
+    if(!file) return;
+    const fd = new FormData(); fd.append("file", file);
+    try{
+      PARAMETROS = await api(`/parametros/${PARAMETROS.id}/logo`, {method:"POST", body: fd});
+      toast("Logo atualizado.");
+      renderParametrosPane();
+      aplicarMarcaNoTopo();
+    }catch(e){}
+    $("param-logo-file").value = "";
+  });
+
+  $("param-tema").addEventListener("change", ()=>{
+    const valor = $("param-tema").value;
+    try{ localStorage.setItem(TEMA_STORAGE_KEY, valor); }catch(e){}
+    aplicarTema(valor);
+  });
+}
+
+// ================= confirm helper =================
+function askConfirm(text, onOk){
+  $("confirm-text").textContent = text; $("overlay-confirm").hidden=false;
+  const ok=$("confirm-ok"), cancel=$("confirm-cancel");
+  function cleanup(){ ok.removeEventListener("click", okH); cancel.removeEventListener("click", cancelH); $("overlay-confirm").hidden=true; }
+  function okH(){ cleanup(); onOk(); } function cancelH(){ cleanup(); }
+  ok.addEventListener("click", okH); cancel.addEventListener("click", cancelH);
+}
+
+boot().catch(e=>{ console.error(e); toast("Falha ao carregar dados iniciais.", true); });
+</script>
+</body>
+</html>

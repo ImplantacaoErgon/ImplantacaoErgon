@@ -1,0 +1,24 @@
+# Uso: quando o banco é o Supabase (não um Postgres local).
+# Sobe só o backend — o "banco" já existe na nuvem, não precisa de container.
+#
+#   cp .env.example .env      # preencha com os dados do seu projeto Supabase
+#   docker compose -f docker-compose.supabase.yml up -d --build
+#
+# Antes de subir, rode o db/schema.sql no SQL Editor do Supabase (ou via
+# `psql "postgresql://...сonnection-string..." -f db/schema.sql`) — este
+# compose não roda migrações automaticamente.
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./frontend:/frontend:ro
+      - uploads:/app/uploads
+    ports:
+      - "8000:8000"
+
+volumes:
+  uploads:

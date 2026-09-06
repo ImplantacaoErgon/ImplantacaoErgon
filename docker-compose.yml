@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-ergon_pm}
+      POSTGRES_USER: ${PGUSER:-postgres}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-ergon}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Só roda automaticamente na PRIMEIRA vez que o volume é criado (banco vazio).
+      # Propositalmente NÃO inclui seed.sql — dados de exemplo ficam de fora
+      # do banco de produção. Para carregá-los manualmente, veja o README.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${PGUSER:-postgres}
+      PGPASSWORD: ${PGPASSWORD:-ergon}
+      PGDATABASE: ${PGDATABASE:-ergon_pm}
+      # Relatório Executivo (IA) do Dashboard — opcional. Sem isso configurado, o
+      # resto do sistema funciona normalmente; só o botão de gerar relatório
+      # devolve um erro explicando o que falta. Veja o README, seção
+      # "Relatório Executivo (IA)", para como obter a chave.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5-20250929}
+      # Login e cadastro de usuários — SECRET_KEY assina o cookie de sessão.
+      # OBRIGATÓRIO configurar antes de ir para produção (veja .env.example);
+      # sem ela, o sistema ainda funciona mas com uma chave padrão insegura.
+      SECRET_KEY: ${SECRET_KEY:-}
+      # Envio de e-mail (nova senha do "Esqueci a senha") — opcional. Sem isso
+      # configurado, login/cadastro funcionam normalmente; só "Esqueci a
+      # senha" devolve um erro explicando o que falta. Veja o README, seção
+      # "Login e cadastro de usuários".
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+    volumes:
+      - ./frontend:/frontend:ro
+      - uploads:/app/uploads
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
+  uploads:
