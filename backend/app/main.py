@@ -75,7 +75,7 @@ TIPO_VINCULO_VALIDOS = {"Techne", "Cliente", "Terceirizado"}
 ATIVIDADE_FIELDS = [
     "projeto_id", "etapa_id", "frente_trabalho_id", "tipo_atividade_elementar_id", "atividade_pai_id",
     "requisito_tr_id",
-    "codigo_wbs", "origem_importacao_id", "nome", "descricao", "responsavel_techne_id", "responsavel_cliente_id",
+    "codigo_wbs", "origem_importacao_id", "nome", "descricao",
     "prazo_horas", "horas_realizadas", "dtini_prev", "dtfim_prev",
     "dtini_real", "dtfim_real", "percentual_concluido", "status", "prioridade", "observacoes",
     "eh_atividade_master",
@@ -114,21 +114,22 @@ ATIVIDADE_SELECT = """
 SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        f.nome AS frente_nome, f.cor_hex AS frente_cor,
        t.nome AS tipo_nome,
-       rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome,
        rq.codigo AS requisito_tr_codigo, rq.titulo AS requisito_tr_titulo,
        (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
         AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
-       -- 16ª rodada: uma vez que existe quebra diária (a atividade apareceu em
-       -- "Minhas atividades"), horas_realizadas passa a ser calculado a partir
-       -- dela (ver minhas_atividades._sincronizar_horas_realizadas) — este flag
-       -- diz ao front-end para travar o campo manual no modal da atividade.
-       EXISTS(SELECT 1 FROM atividade_horas_dia hd WHERE hd.atividade_id = a.id) AS tem_apontamento_diario
+       -- Lista completa de responsáveis/participantes (N, não mais 2 campos fixos —
+       -- ver tabela atividade_recurso e migração 012), já pronta pro front-end sem
+       -- round-trip extra: cada item {id, nome, tipo_vinculo}.
+       COALESCE((
+         SELECT json_agg(json_build_object('id', r.id, 'nome', r.nome, 'tipo_vinculo', r.tipo_vinculo)
+                          ORDER BY r.tipo_vinculo, r.nome)
+         FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
+         WHERE ar.atividade_id = a.id
+       ), '[]') AS responsaveis
 FROM atividades a
 JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
 LEFT JOIN tipos_atividade_elementar t ON t.id = a.tipo_atividade_elementar_id
-LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
-LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
 LEFT JOIN requisitos_tr rq ON rq.id = a.requisito_tr_id
 """
 
@@ -543,10 +544,11 @@ def create_app():
             where.append(f"a.frente_trabalho_id = {db.q(args['frente_trabalho_id'])}")
         if args.get("status"):
             where.append(f"a.status = {db.q(args['status'])}")
-        if args.get("responsavel_techne_id"):
-            where.append(f"a.responsavel_techne_id = {db.q(args['responsavel_techne_id'])}")
-        if args.get("responsavel_cliente_id"):
-            where.append(f"a.responsavel_cliente_id = {db.q(args['responsavel_cliente_id'])}")
+        if args.get("responsavel_id"):
+            where.append(
+                f"EXISTS(SELECT 1 FROM atividade_recurso ar WHERE ar.atividade_id = a.id "
+                f"AND ar.recurso_id = {db.q(args['responsavel_id'])})"
+            )
         if args.get("atividade_pai_id"):
             where.append(f"a.atividade_pai_id = {db.q(args['atividade_pai_id'])}")
         if args.get("search"):
@@ -599,18 +601,6 @@ def create_app():
     @app.put("/api/atividades/<id>")
     def update_atividade(id):
         data = request.get_json(force=True)
-        # 16ª rodada: uma vez que a atividade tem quebra diária de horas (ver
-        # atividade_horas_dia/minhas_atividades.py), horas_realizadas passa a
-        # ser calculado a partir dos dias confirmados, não editado à mão aqui
-        # — ignora silenciosamente qualquer valor mandado neste campo, mesmo
-        # que alguém contorne o campo desabilitado da interface (o front-end
-        # já evita mandar, mas a garantia de verdade é aqui no servidor).
-        if "horas_realizadas" in data:
-            tem_apontamento = db.fetch_one(
-                f"SELECT 1 AS x FROM atividade_horas_dia WHERE atividade_id = {db.q(id)} LIMIT 1"
-            )
-            if tem_apontamento:
-                data = {k: v for k, v in data.items() if k != "horas_realizadas"}
         novo_status = data.get("status")
         if novo_status in STATUS_EXIGE_RELATO:
             tem_relato = db.fetch_one(
@@ -722,10 +712,17 @@ def create_app():
         )
         return jsonify(db.execute_returning_one(sql)), 201
 
+    @app.delete("/api/atividades/<id>/recursos/<recurso_id>")
+    def remove_atividade_recurso(id, recurso_id):
+        db.execute(
+            f"DELETE FROM atividade_recurso WHERE atividade_id = {db.q(id)} AND recurso_id = {db.q(recurso_id)}"
+        )
+        return "", 204
+
     # -------------------------------------------------- minhas atividades
     # Grade semanal do consultor logado: dias úteis da semana x atividades em
     # que o profissional vinculado a ele (por e-mail, ver
-    # backend/app/minhas_atividades.py) é Responsável Techne ou cliente.
+    # backend/app/minhas_atividades.py) é um dos participantes (atividade_recurso).
     @app.get("/api/minhas-atividades")
     def minhas_atividades_grade():
         # 16ª rodada: não recebe mais projeto_id — a grade sempre traz as

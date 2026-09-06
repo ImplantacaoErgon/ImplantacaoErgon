@@ -168,8 +168,10 @@ CREATE TABLE atividades (
                                        -- duplicar) — ver backend/app/cronograma_import.py. NULL se cadastrada manualmente.
   nome              text NOT NULL,    -- "Levantamento Grupo de Vencimento", "Extração de Pessoas"...
   descricao         text,
-  responsavel_techne_id  uuid REFERENCES recursos(id),   -- responsável do lado Techne (executa/acompanha)
-  responsavel_cliente_id uuid REFERENCES recursos(id),   -- contraparte/responsável do lado do cliente (valida/participa)
+  -- Quem executa/participa da atividade (Techne, cliente ou terceirizado, quantos forem
+  -- necessários) fica em `atividade_recurso` (N:N — ver seção 8), não mais em campos fixos
+  -- aqui. Migração 012 removeu os antigos responsavel_techne_id/responsavel_cliente_id
+  -- (um único responsável de cada lado) por essa tabela de relação.
 
   prazo_horas       numeric(8,2),     -- horas previstas (estimativa de esforço planejada)
   horas_realizadas  numeric(8,2),     -- horas efetivamente gastas na execução — pode ficar acima ou abaixo do previsto
@@ -286,8 +288,22 @@ CREATE INDEX idx_dep_predecessora ON atividade_dependencia(predecessora_id);
 COMMENT ON TABLE atividade_dependencia IS 'Arestas do grafo de precedência. tipo/lag seguem a convenção clássica de CPM (FS, SS, FF, SF + lag).';
 
 -- ============================================================================
--- 8. ALOCAÇÃO DE RECURSOS EM ATIVIDADES (N:N — mais de um responsável/apoio)
+-- 8. ALOCAÇÃO DE RECURSOS EM ATIVIDADES (N:N — quantos responsáveis forem necessários)
 -- ============================================================================
+-- Desde a migração 012, esta é a ÚNICA fonte de "quem participa/executa" uma
+-- atividade — os antigos campos fixos atividades.responsavel_techne_id /
+-- responsavel_cliente_id (um só de cada lado) foram removidos. Uma atividade
+-- pode ter quantos participantes forem necessários, de qualquer tipo de
+-- vínculo (ex: uma reunião gerencial com 4 pessoas da Techne e 5 do cliente).
+-- Editável na aba "Responsáveis" do modal da atividade (ver frontend/index.html
+-- e as rotas /api/atividades/<id>/recursos em backend/app/main.py). É também
+-- esta lista que decide quem vê a atividade em "Minhas atividades" — cada
+-- participante aponta e confirma as PRÓPRIAS horas lá, de forma independente
+-- dos demais (ver seção 18 abaixo) — sem que isso altere o previsto/realizado
+-- da atividade aqui no Cronograma (`atividades.prazo_horas`/`horas_realizadas`
+-- continuam sendo um número único, editado à parte, igual para a atividade
+-- inteira independente de quantos participaram ou de quantas horas cada um
+-- apontou individualmente).
 CREATE TABLE atividade_recurso (
   atividade_id    uuid NOT NULL REFERENCES atividades(id) ON DELETE CASCADE,
   recurso_id      uuid NOT NULL REFERENCES recursos(id) ON DELETE CASCADE,
@@ -522,25 +538,38 @@ COMMENT ON COLUMN parametros_site.logo_arquivo IS
 -- ============================================================================
 -- 18. HORAS DIÁRIAS DA ATIVIDADE  ("Minhas atividades" — grade semanal do consultor)
 -- ============================================================================
--- Quebra diária das horas previstas de uma atividade. Alimenta a página
--- "Minhas atividades": cada usuário logado vê, numa planilha, os dias úteis
--- da semana corrente cruzados com as atividades em que o profissional
--- vinculado a ele (ver nota abaixo) aparece como Responsável Techne ou
--- Responsável cliente, com a hora prevista de cada dia — e pode ajustar o
--- número ou simplesmente confirmar a execução.
+-- Quebra diária das horas previstas de uma atividade, POR RESPONSÁVEL.
+-- Alimenta a página "Minhas atividades": cada usuário logado vê, numa
+-- planilha, os dias úteis da semana corrente cruzados com as atividades em
+-- que o profissional vinculado a ele (ver nota abaixo) é um dos participantes
+-- (tabela `atividade_recurso`, seção 8) — com a hora prevista de cada dia — e
+-- pode ajustar o número ou simplesmente confirmar a execução.
 --
--- As linhas desta tabela são geradas automaticamente (pelo backend, função
--- garantir_dias() em backend/app/minhas_atividades.py) na primeira vez que a
--- grade de uma atividade é aberta: o total de atividades.prazo_horas é
--- dividido igualmente pelos dias úteis entre dtini_prev e dtfim_prev
--- (respeitando as exceções cadastradas em calendario_util). A partir daí a
--- geração NÃO se repete (mesmo que prazo_horas/datas sejam editados depois
--- por reimportação de cronograma ou edição manual) — a grade diária, uma vez
--- criada, passa a ser a fonte de verdade e não deve ser sobrescrita por
--- ajustes já feitos pelo consultor. Isso é uma limitação conhecida: se o
--- planejamento de uma atividade muda muito depois que a grade já foi gerada,
--- pode ser necessário um ajuste manual dia a dia (não existe nesta rodada
--- uma regeneração/redistribuição automática).
+-- Desde a migração 012, a granularidade é por (atividade, recurso, dia), não
+-- mais só (atividade, dia): uma atividade com N participantes (ex: uma
+-- reunião gerencial com 4 pessoas da Techne e 5 do cliente) gera uma quebra
+-- diária PRÓPRIA para cada participante, e cada um aponta/confirma as
+-- próprias horas de forma totalmente independente dos demais — sem que isso
+-- altere `atividades.prazo_horas`/`horas_realizadas`, que continuam sendo um
+-- número único da atividade, editado à parte (a reunião continua
+-- prevista/realizada em, por exemplo, 2h no Cronograma, não importa quantos
+-- participaram nem quantas horas cada um apontou individualmente).
+--
+-- As linhas desta tabela são geradas automaticamente, por participante
+-- (pelo backend, função garantir_dias() em backend/app/minhas_atividades.py)
+-- na primeira vez que a grade da atividade é aberta por aquele participante:
+-- o total de atividades.prazo_horas é dividido igualmente pelos dias úteis
+-- entre dtini_prev e dtfim_prev (respeitando as exceções cadastradas em
+-- calendario_util) — cada participante recebe a MESMA distribuição prevista
+-- (não dividida entre eles), e cada um confirma seu próprio andamento. A
+-- partir daí a geração NÃO se repete para aquele participante (mesmo que
+-- prazo_horas/datas sejam editados depois por reimportação de cronograma ou
+-- edição manual) — a grade diária, uma vez criada, passa a ser a fonte de
+-- verdade e não deve ser sobrescrita por ajustes já feitos pelo consultor.
+-- Isso é uma limitação conhecida: se o planejamento de uma atividade muda
+-- muito depois que a grade já foi gerada, pode ser necessário um ajuste
+-- manual dia a dia (não existe nesta rodada uma regeneração/redistribuição
+-- automática).
 --
 -- O vínculo "usuário logado -> profissional (recursos)" NÃO é uma coluna
 -- nova — é resolvido em tempo de consulta comparando o e-mail de login
@@ -552,6 +581,7 @@ COMMENT ON COLUMN parametros_site.logo_arquivo IS
 CREATE TABLE atividade_horas_dia (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   atividade_id      uuid NOT NULL REFERENCES atividades(id) ON DELETE CASCADE,
+  recurso_id        uuid NOT NULL REFERENCES recursos(id) ON DELETE CASCADE,
   data              date NOT NULL,
   horas_previstas   numeric(5,2) NOT NULL DEFAULT 0,
   horas_realizadas  numeric(5,2),        -- preenchido quando o consultor confirma (ajustado ou igual ao previsto)
@@ -559,17 +589,20 @@ CREATE TABLE atividade_horas_dia (
   confirmado_em     timestamptz,
   confirmado_por    uuid REFERENCES usuarios(id),
   atualizado_em     timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (atividade_id, data)
+  UNIQUE (atividade_id, recurso_id, data)
 );
 CREATE INDEX idx_horas_dia_atividade ON atividade_horas_dia(atividade_id, data);
+CREATE INDEX idx_horas_dia_recurso ON atividade_horas_dia(recurso_id);
 CREATE INDEX idx_horas_dia_data ON atividade_horas_dia(data);
 CREATE TRIGGER trg_horas_dia_atualizado_em BEFORE UPDATE ON atividade_horas_dia
   FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
 COMMENT ON TABLE atividade_horas_dia IS
-  'Quebra diária das horas previstas/confirmadas de uma atividade — alimenta '
-  'a página "Minhas atividades" (grade semanal por consultor). Gerada '
-  'automaticamente uma única vez por atividade (ver comentário acima); a '
-  'partir daí é a fonte de verdade daquela atividade, dia a dia.';
+  'Quebra diária das horas previstas/confirmadas de uma atividade, POR '
+  'RESPONSÁVEL — alimenta a página "Minhas atividades" (grade semanal por '
+  'consultor). Gerada automaticamente uma única vez por (atividade, '
+  'recurso) (ver comentário acima); a partir daí é a fonte de verdade '
+  'daquele participante naquela atividade, dia a dia — independente dos '
+  'demais participantes da mesma atividade.';
 
 -- Acelera o casamento usuário-logado -> profissional por e-mail (ver comentário
 -- acima) — mesmo padrão do índice funcional já usado em usuarios(lower(email)).
@@ -581,13 +614,13 @@ CREATE INDEX idx_recursos_email_lower ON recursos (lower(email)) WHERE email IS 
 
 CREATE VIEW vw_atividades_atrasadas AS
 SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
-       rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome,
+       (SELECT string_agg(r.nome, ', ' ORDER BY r.nome)
+        FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
+        WHERE ar.atividade_id = a.id) AS responsaveis_nomes,
        (CURRENT_DATE - a.dtfim_prev) AS dias_atraso
 FROM atividades a
 JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
-LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
-LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
 WHERE a.status NOT IN ('Concluída','Cancelada')
   AND a.dtfim_prev IS NOT NULL
   AND a.dtfim_prev < CURRENT_DATE;
@@ -595,12 +628,12 @@ COMMENT ON VIEW vw_atividades_atrasadas IS 'Atividades cujo fim previsto já pas
 
 CREATE VIEW vw_caminho_critico AS
 SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
-       rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome
+       (SELECT string_agg(r.nome, ', ' ORDER BY r.nome)
+        FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
+        WHERE ar.atividade_id = a.id) AS responsaveis_nomes
 FROM atividades a
 JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
-LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
-LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
 WHERE a.cpm_critica = true
 ORDER BY a.cpm_es_dias;
 COMMENT ON VIEW vw_caminho_critico IS 'Última foto do caminho crítico calculado (ver endpoint /api/cpm/recalcular no backend).';

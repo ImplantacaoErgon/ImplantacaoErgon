@@ -198,15 +198,15 @@ def coletar_dados_projeto(projeto_id):
     horas_dia_util = float(projeto.get("horas_dia_util") or 8.0)
 
     atividades = db.fetch_all(f"""
-        SELECT a.*, f.nome AS frente_nome, rt.nome AS responsavel_techne_nome,
-               rc.nome AS responsavel_cliente_nome,
+        SELECT a.*, f.nome AS frente_nome,
+               (SELECT string_agg(r.nome, ', ' ORDER BY r.nome)
+                FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
+                WHERE ar.atividade_id = a.id) AS responsaveis_nomes,
                (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
                 AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
                (CURRENT_DATE - a.dtfim_prev) AS dias_atraso
         FROM atividades a
         JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
-        LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
-        LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
         WHERE a.projeto_id = {db.q(projeto_id)}
     """)
     by_id = {a["id"]: a for a in atividades}
@@ -242,7 +242,7 @@ def coletar_dados_projeto(projeto_id):
         {
             "codigo_wbs": a.get("codigo_wbs"), "nome": a["nome"], "frente": a["frente_nome"],
             "status": a["status"], "fim_previsto": a.get("dtfim_prev"), "dias_atraso": a["dias_atraso"],
-            "responsavel_techne": a.get("responsavel_techne_nome"),
+            "responsaveis": a.get("responsaveis_nomes"),
         }
         for a in atrasadas_todas[:LIMITE_ATRASADAS_NO_PROMPT]
     ]
@@ -309,7 +309,7 @@ def coletar_dados_projeto(projeto_id):
         item = {
             "codigo_wbs": a.get("codigo_wbs"), "nome": a["nome"], "frente": a["frente_nome"],
             "status": a["status"], "percentual_concluido": a.get("percentual_concluido"),
-            "responsavel_techne": a.get("responsavel_techne_nome"),
+            "responsaveis": a.get("responsaveis_nomes"),
             "fim_previsto_no_plano": a.get("dtfim_prev"),
             "no_caminho_critico_do_plano": bool(a.get("cpm_critica")),
         }

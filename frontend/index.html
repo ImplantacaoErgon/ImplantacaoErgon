@@ -359,7 +359,7 @@
     </div>
     <div class="card" id="dash-alertas-card" hidden>
       <h3>⚠ Atenção — Urgente/Alta sem responsável ou sem prazo</h3>
-      <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm um responsável Techne definido ou não têm data fim prevista — risco de escapar do radar.</div>
+      <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm nenhum responsável definido ou não têm data fim prevista — risco de escapar do radar.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Código</th><th>Atividade</th><th>Prioridade</th><th>Frente</th><th>O que falta</th></tr></thead>
         <tbody id="dash-alertas"></tbody>
@@ -367,7 +367,7 @@
     </div>
     <div class="card">
       <h3>Horas por responsável (previsto × realizado)</h3>
-      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada pessoa aparece como responsável (Techne ou cliente). A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
+      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada pessoa aparece como responsável/participante. Cada atividade é contada por inteiro para todos os seus participantes, independente de quantos sejam. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Responsável</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
         <tbody id="dash-horas-resp"></tbody>
@@ -391,8 +391,7 @@
       <select id="f-etapa"><option value="">Etapa (todas)</option></select>
       <select id="f-frente"><option value="">Frente (todas)</option></select>
       <select id="f-status"><option value="">Status (todos)</option></select>
-      <select id="f-responsavel"><option value="">Responsável Techne (todos)</option></select>
-      <select id="f-responsavel-cliente"><option value="">Responsável cliente (todos)</option></select>
+      <select id="f-responsavel"><option value="">Responsável (todos)</option></select>
       <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-muted);">
         <input type="checkbox" id="f-atrasadas"> só atrasadas
       </label>
@@ -407,7 +406,7 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Código</th><th>Atividade</th><th>Etapa/Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>%</th><th>Horas (prev./real.)</th><th>Responsável Techne / Cliente</th><th>Crítica</th>
+          <th>Código</th><th>Atividade</th><th>Etapa/Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>%</th><th>Horas (prev./real.)</th><th>Responsáveis</th><th>Crítica</th>
         </tr></thead>
         <tbody id="atividades-tbody"></tbody>
       </table>
@@ -478,7 +477,7 @@
   <!-- ============ MINHAS ATIVIDADES ============ -->
   <section class="view" id="view-minhas-atividades">
     <h2 class="view-title">Minhas atividades</h2>
-    <div class="view-sub">Atividades delegadas a você (como Responsável Techne ou cliente) na semana selecionada, <b>em todos os projetos</b> — ajuste as horas de cada dia ou apenas confirme a execução.</div>
+    <div class="view-sub">Atividades em que você é um dos responsáveis/participantes na semana selecionada, <b>em todos os projetos</b> — ajuste as horas de cada dia ou apenas confirme a execução.</div>
 
     <div class="filters">
       <button class="btn secondary small" id="ma-prev">‹ Semana anterior</button>
@@ -612,6 +611,7 @@
     <div class="modal-head"><h2 id="at-modal-title">Nova atividade</h2><button class="btn ghost" id="at-close">✕</button></div>
     <div class="modal-tabs">
       <button data-pane="detalhes" class="active">Detalhes</button>
+      <button data-pane="responsaveis">Responsáveis</button>
       <button data-pane="relatos">Relatos</button>
       <button data-pane="dependencias">Dependências</button>
       <button data-pane="requisitos">Requisitos vinculados</button>
@@ -630,8 +630,6 @@
 
         <div class="field"><label>Tipo de atividade elementar</label><select id="at-tipo"></select></div>
         <div class="field"><label>Item do TR (opcional)</label><select id="at-requisito-tr"></select></div>
-        <div class="field"><label>Responsável Techne</label><select id="at-responsavel-techne"></select></div>
-        <div class="field"><label>Responsável cliente</label><select id="at-responsavel-cliente"></select></div>
 
         <div class="field"><label>Status</label>
           <select id="at-status"><option>Não iniciada</option><option>Em andamento</option><option>Bloqueada</option><option>Concluída</option><option>Cancelada</option></select>
@@ -645,17 +643,24 @@
         </div>
 
         <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço"></div>
-        <div class="field">
-          <label>Horas realizadas</label>
-          <input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas">
-          <div class="muted" id="at-horas-real-hint" hidden style="font-size:11.5px;margin-top:3px;">Calculado automaticamente pela soma dos dias confirmados em "Minhas atividades" — não é mais editável aqui.</div>
-        </div>
+        <div class="field"><label>Horas realizadas</label><input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas"></div>
         <div class="field"><label>Início previsto</label><input id="at-dtini-prev" type="date"></div>
         <div class="field"><label>Fim previsto</label><input id="at-dtfim-prev" type="date"></div>
         <div class="field"><label>Início real</label><input id="at-dtini-real" type="date"></div>
         <div class="field"><label>Fim real</label><input id="at-dtfim-real" type="date"></div>
 
         <div class="field full"><label>Observações</label><textarea id="at-observacoes"></textarea></div>
+      </div>
+    </div>
+
+    <div class="modal-pane" data-pane="responsaveis">
+      <div class="modal-body single-col">
+        <ul class="list-simple" id="at-resp-list"></ul>
+        <div class="inline-add">
+          <select id="at-resp-add-select"></select>
+          <button class="btn small" id="at-resp-add">Adicionar</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Todas as pessoas (Techne, cliente ou terceirizadas) envolvidas na execução desta atividade — pode ter quantas forem necessárias (ex: uma reunião gerencial com várias pessoas de ambos os lados). Cada uma aponta e confirma as próprias horas em "Minhas atividades", de forma independente das demais; o previsto/realizado da atividade no Cronograma continua sendo um número único, que não muda conforme quantas pessoas participaram.</p>
       </div>
     </div>
 
@@ -1332,10 +1337,7 @@ function fillStaticSelects(){
   // "resetar" silenciosamente pro vazio ao reabrir/editar a atividade.
   const recursoLabel = r => `${esc(r.nome)} (${esc(r.tipo_vinculo||"—")}${r.cargo?" · "+esc(r.cargo):""})${r.ativo===false?" — inativo":""}`;
   const recursoOpts = RECURSOS.map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
-  $("f-responsavel").innerHTML = `<option value="">Responsável Techne (todos)</option>` + recursoOpts;
-  $("f-responsavel-cliente").innerHTML = `<option value="">Responsável cliente (todos)</option>` + recursoOpts;
-  $("at-responsavel-techne").innerHTML = `<option value="">—</option>` + recursoOpts;
-  $("at-responsavel-cliente").innerHTML = `<option value="">—</option>` + recursoOpts;
+  $("f-responsavel").innerHTML = `<option value="">Responsável (todos)</option>` + recursoOpts;
   $("req-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
   $("at-relato-pend-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
 
@@ -1437,23 +1439,6 @@ function renderMinhasAtividades(){
     </tr>`;
 }
 
-// 16ª rodada (parte 3): depois de ajustar/confirmar/desconfirmar um dia, o
-// backend pode ter recalculado atividades.horas_realizadas (ver
-// backend/app/minhas_atividades.py: _sincronizar_horas_realizadas). Se essa
-// atividade pertence ao projeto atualmente selecionado no cabeçalho, ela já
-// está em ATIVIDADES (usado pelo Cronograma/Dashboard) — atualiza só ela ali
-// e redesenha, pra não precisar de F5 pra ver o número novo lá. Se for de
-// outro projeto (a grade de "Minhas atividades" mostra todos, ver 16ª
-// rodada parte 2), não tem o que atualizar aqui — nada acontece.
-async function atualizarAtividadeEmCache(atividadeId){
-  const idx = ATIVIDADES.findIndex(a => a.id === atividadeId);
-  if(idx === -1) return;
-  try{
-    ATIVIDADES[idx] = await api(`/atividades/${atividadeId}`);
-    renderCronograma(); renderDashboard();
-  }catch(e){}
-}
-
 function wireMinhasAtividades(){
   $("ma-prev").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()-7); carregarMinhasAtividades(); });
   $("ma-next").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()+7); carregarMinhasAtividades(); });
@@ -1464,13 +1449,11 @@ function wireMinhasAtividades(){
     const input = e.target.closest("input[type=number]"); if(!input) return;
     const cell = input.closest(".ma-cell"); if(!cell) return;
     const id = cell.dataset.horasDiaId;
-    const atividadeId = e.target.closest("tr")?.dataset.atividadeId;
     const valor = input.value === "" ? 0 : Number(input.value);
     try{
       await api(`/minhas-atividades/dia/${id}`, {method:"PUT", body: JSON.stringify({horas_previstas: valor})});
       toast("Horas previstas atualizadas.");
       await carregarMinhasAtividades();
-      if(atividadeId) await atualizarAtividadeEmCache(atividadeId);
     }catch(err){}
   });
 
@@ -1479,7 +1462,6 @@ function wireMinhasAtividades(){
     const btn = e.target.closest("button.ma-confirmar"); if(!btn) return;
     const cell = btn.closest(".ma-cell"); if(!cell) return;
     const id = cell.dataset.horasDiaId;
-    const atividadeId = e.target.closest("tr")?.dataset.atividadeId;
     const confirmado = cell.classList.contains("confirmado");
     try{
       if(confirmado){
@@ -1491,7 +1473,6 @@ function wireMinhasAtividades(){
         toast("Execução confirmada.");
       }
       await carregarMinhasAtividades();
-      if(atividadeId) await atualizarAtividadeEmCache(atividadeId);
     }catch(err){}
   });
 }
@@ -1539,7 +1520,7 @@ function currentFilters(){
   return {
     search: $("f-search").value.trim().toLowerCase(),
     etapa: $("f-etapa").value, frente: $("f-frente").value, status: $("f-status").value,
-    responsavel: $("f-responsavel").value, responsavelCliente: $("f-responsavel-cliente").value,
+    responsavel: $("f-responsavel").value,
     atrasadas: $("f-atrasadas").checked,
     range: document.querySelector("#quickperiod button.active")?.dataset.range || "todas",
   };
@@ -1560,11 +1541,11 @@ function applyFilters(list){
     if(f.etapa && a.etapa_id!==f.etapa) return false;
     if(f.frente && a.frente_trabalho_id!==f.frente) return false;
     if(f.status && a.status!==f.status) return false;
-    if(f.responsavel && a.responsavel_techne_id!==f.responsavel) return false;
-    if(f.responsavelCliente && a.responsavel_cliente_id!==f.responsavelCliente) return false;
+    if(f.responsavel && !(a.responsaveis||[]).some(p=>p.id===f.responsavel)) return false;
     if(f.atrasadas && !a.atrasada) return false;
     if(f.search){
-      const hay=[a.codigo_wbs,a.nome,a.descricao,a.responsavel_techne_nome,a.responsavel_cliente_nome].join(" ").toLowerCase();
+      const nomesResp = (a.responsaveis||[]).map(p=>p.nome).join(" ");
+      const hay=[a.codigo_wbs,a.nome,a.descricao,nomesResp].join(" ").toLowerCase();
       if(!hay.includes(f.search)) return false;
     }
     if(range && a.dtini_prev && a.dtfim_prev){
@@ -1583,7 +1564,7 @@ function wireFilters(){
   // porque o elemento que recebeu o mousedown desapareceu do DOM, e o clique na linha
   // silenciosamente não fazia nada na primeira tentativa logo depois de digitar uma busca.
   $("f-search").addEventListener("input", renderCronograma);
-  ["f-etapa","f-frente","f-status","f-responsavel","f-responsavel-cliente","f-atrasadas"].forEach(id=>{
+  ["f-etapa","f-frente","f-status","f-responsavel","f-atrasadas"].forEach(id=>{
     $(id).addEventListener("input", renderCronograma);
     $(id).addEventListener("change", renderCronograma);
   });
@@ -1594,7 +1575,7 @@ function wireFilters(){
   });
   $("btn-clear-filters").addEventListener("click", ()=>{
     $("f-search").value=""; $("f-etapa").value=""; $("f-frente").value=""; $("f-status").value="";
-    $("f-responsavel").value=""; $("f-responsavel-cliente").value=""; $("f-atrasadas").checked=false;
+    $("f-responsavel").value=""; $("f-atrasadas").checked=false;
     document.querySelectorAll("#quickperiod button").forEach(b=>b.classList.toggle("active", b.dataset.range==="todas"));
     renderCronograma();
   });
@@ -1619,6 +1600,18 @@ function horasCell(a){
   return `<span class="mono" style="color:${cor};" title="${titulo}">${prev??"—"}h / ${real}h</span>`;
 }
 
+// Atividade pode ter N responsáveis (ver aba "Responsáveis" no modal e a
+// tabela atividade_recurso) — mostra os 2 primeiros por extenso e um "+N"
+// pros demais, com a lista completa no title (tooltip) pra não precisar
+// abrir o modal só pra ver quem mais está envolvido.
+function responsaveisCell(a){
+  const nomes = (a.responsaveis||[]).map(p=>p.nome);
+  if(!nomes.length) return `<span class="muted">—</span>`;
+  const visiveis = nomes.slice(0,2).join(", ");
+  const resto = nomes.length>2 ? ` <span class="muted">+${nomes.length-2}</span>` : "";
+  return `<span title="${esc(nomes.join(", "))}">${esc(visiveis)}${resto}</span>`;
+}
+
 function renderAtividadesTable(list){
   if(!list.length){
     $("atividades-tbody").innerHTML = `<tr class="empty-row"><td colspan="10">Nenhuma atividade encontrada para os filtros atuais.</td></tr>`;
@@ -1634,7 +1627,7 @@ function renderAtividadesTable(list){
       <td class="mono">${fmtDate(a.dtfim_prev)}</td>
       <td class="mono">${a.percentual_concluido}%</td>
       <td>${horasCell(a)}</td>
-      <td>${esc(a.responsavel_techne_nome||"—")}<div class="muted" style="font-size:11px;">${a.responsavel_cliente_nome?"Cliente: "+esc(a.responsavel_cliente_nome):""}</div></td>
+      <td>${responsaveisCell(a)}</td>
       <td>${a.cpm_critica? pill("Crítica","danger") : ""}</td>
     </tr>`).join("");
   $("atividades-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
@@ -1712,7 +1705,7 @@ function renderDashboard(){
     $("dash-atrasadas").innerHTML = rows.length ? rows.map(r=>`
       <tr><td class="mono">${esc(r.codigo_wbs||"—")}</td><td>${esc(r.nome)}</td><td>${esc(r.frente_nome)}</td>
       <td class="mono">${fmtDate(r.dtfim_prev)}</td><td class="mono" style="color:var(--danger);">${r.dias_atraso}d</td>
-      <td>${esc(r.responsavel_techne_nome||"—")}</td></tr>`).join("")
+      <td>${esc(r.responsaveis_nomes||"—")}</td></tr>`).join("")
       : `<tr class="empty-row"><td colspan="6">Nenhuma atividade atrasada. 🎉</td></tr>`;
   });
 
@@ -1725,20 +1718,20 @@ function renderDashboard(){
   renderHorasPorResponsavel();
 }
 
-// Atividades Urgente/Alta, ainda não concluídas/canceladas, sem responsável Techne ou sem fim previsto —
+// Atividades Urgente/Alta, ainda não concluídas/canceladas, sem nenhum responsável ou sem fim previsto —
 // ficam fáceis de esquecer porque não aparecem em "atrasadas" enquanto não passar do prazo (ou nem tem prazo).
 function renderAlertasPrioridade(){
   const alertas = ATIVIDADES.filter(a =>
     (a.prioridade === "Urgente" || a.prioridade === "Alta") &&
     a.status !== "Concluída" && a.status !== "Cancelada" &&
-    (!a.responsavel_techne_id || !a.dtfim_prev)
+    (!(a.responsaveis||[]).length || !a.dtfim_prev)
   ).sort((a,b)=> (a.prioridade==="Urgente"?0:1) - (b.prioridade==="Urgente"?0:1));
 
   $("dash-alertas-card").hidden = alertas.length === 0;
   if(!alertas.length) return;
   $("dash-alertas").innerHTML = alertas.map(a=>{
     const faltando = [];
-    if(!a.responsavel_techne_id) faltando.push("sem responsável Techne");
+    if(!(a.responsaveis||[]).length) faltando.push("sem responsável");
     if(!a.dtfim_prev) faltando.push("sem data fim prevista");
     return `<tr class="clickable" data-id="${a.id}">
       <td class="mono">${esc(a.codigo_wbs||"—")}</td><td>${esc(a.nome)}</td>
@@ -1752,8 +1745,11 @@ function renderAlertasPrioridade(){
   });
 }
 
-// Soma horas previstas/realizadas por responsável (Techne ou cliente), a partir das atividades já carregadas —
-// não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS.
+// Soma horas previstas/realizadas por responsável, a partir das atividades já carregadas —
+// não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS. Uma
+// atividade com N participantes credita o previsto/realizado da atividade INTEIRO a CADA
+// um deles (não dividido) — é assim que o dono do dado pediu: "cada responsável realizou
+// essa atividade, cada um com 2h", independente de quantos participaram.
 function renderHorasPorResponsavel(){
   // Diferença só é calculada sobre o subconjunto de atividades que já têm horas_realizadas
   // lançadas — comparar realizado x previsto do total (incluindo o que nem começou) faria
@@ -1772,7 +1768,7 @@ function renderHorasPorResponsavel(){
       acc.realizadas += Number(a.horas_realizadas || 0);
     }
   };
-  ATIVIDADES.forEach(a => { acumula(a.responsavel_techne_id, a); acumula(a.responsavel_cliente_id, a); });
+  ATIVIDADES.forEach(a => (a.responsaveis||[]).forEach(p => acumula(p.id, a)));
 
   const linhas = [...porPessoa.entries()]
     .map(([recursoId, acc]) => ({recurso: byId(RECURSOS, recursoId), ...acc}))
@@ -1903,6 +1899,12 @@ function wireAtividadeModal(){
       toast("Atividade excluída.");
     });
   });
+  $("at-resp-add").addEventListener("click", async ()=>{
+    const recurso_id = $("at-resp-add-select").value; if(!recurso_id) return;
+    await api(`/atividades/${editingAtividadeId}/recursos`, {method:"POST", body: JSON.stringify({recurso_id})});
+    await refreshResponsaveis();
+    await loadAtividades(); renderCronograma(); renderDashboard();
+  });
   $("at-dep-add").addEventListener("click", async ()=>{
     const predecessora_id = $("at-dep-predecessora").value; if(!predecessora_id) return;
     await api(`/atividades/${editingAtividadeId}/dependencias`, {method:"POST", body: JSON.stringify({
@@ -1961,21 +1963,12 @@ function openAtividadeModal(atividade){
   // caso um requisito tenha sido criado/editado na aba "Requisitos" desde o carregamento inicial.
   $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
   $("at-requisito-tr").value = atividade?.requisito_tr_id || "";
-  $("at-responsavel-techne").value = atividade?.responsavel_techne_id || "";
-  $("at-responsavel-cliente").value = atividade?.responsavel_cliente_id || "";
   $("at-status").value = atividade?.status || "Não iniciada";
   $("at-prioridade").value = atividade?.prioridade || "Média";
   $("at-percentual").value = atividade?.percentual_concluido ?? 0;
   $("at-master").checked = !!atividade?.eh_atividade_master;
   $("at-prazo").value = atividade?.prazo_horas ?? "";
   $("at-horas-real").value = atividade?.horas_realizadas ?? "";
-  // 16ª rodada: uma vez que a atividade tem apontamento diário (apareceu em
-  // "Minhas atividades"), o realizado passa a ser calculado a partir dos
-  // dias confirmados lá — o campo aqui vira só leitura, pra não divergir do
-  // que o consultor está apontando (ver backend/app/minhas_atividades.py).
-  const temApontamento = !!atividade?.tem_apontamento_diario;
-  $("at-horas-real").disabled = temApontamento;
-  $("at-horas-real-hint").hidden = !temApontamento;
   $("at-dtini-prev").value = atividade?.dtini_prev || "";
   $("at-dtfim-prev").value = atividade?.dtfim_prev || "";
   $("at-dtini-real").value = atividade?.dtini_real || "";
@@ -1985,8 +1978,9 @@ function openAtividadeModal(atividade){
   $("at-relato-pend-responsavel").value=""; $("at-relato-pend-prazo").value=""; $("at-relato-pend-limite").value="";
   switchPane($("overlay-atividade"), "detalhes");
   $("overlay-atividade").hidden = false;
-  if(atividade){ refreshDeps(); refreshReqs(); refreshAnexos(); refreshRelatos(); }
+  if(atividade){ refreshResponsaveis(); refreshDeps(); refreshReqs(); refreshAnexos(); refreshRelatos(); }
   else {
+    $("at-resp-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar responsáveis.</li>`;
     $("at-deps-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar dependências.</li>`;
     $("at-reqs-list").innerHTML=""; $("at-anexos-list").innerHTML="";
     $("at-relatos-list").innerHTML = `<li class="muted">Salve a atividade antes de registrar relatos.</li>`;
@@ -2000,16 +1994,10 @@ async function saveAtividade(){
     codigo_wbs: $("at-codigo").value.trim(), nome: $("at-nome").value.trim(), descricao: $("at-descricao").value.trim(),
     etapa_id: $("at-etapa").value, frente_trabalho_id: $("at-frente").value, tipo_atividade_elementar_id: $("at-tipo").value || null,
     requisito_tr_id: $("at-requisito-tr").value || null,
-    responsavel_techne_id: $("at-responsavel-techne").value || null,
-    responsavel_cliente_id: $("at-responsavel-cliente").value || null,
     status: $("at-status").value, prioridade: $("at-prioridade").value,
     percentual_concluido: Number($("at-percentual").value || 0), prazo_horas: $("at-prazo").value ? Number($("at-prazo").value) : null,
     eh_atividade_master: $("at-master").checked,
-    // Enquanto o campo está travado (apontamento diário assumiu o cálculo),
-    // não manda horas_realizadas no payload — o backend ignoraria mesmo (ver
-    // update_atividade), mas evita mandar um valor "congelado" do campo
-    // desabilitado sem necessidade.
-    ...($("at-horas-real").disabled ? {} : {horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null}),
+    horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null,
     dtini_prev: $("at-dtini-prev").value || null, dtfim_prev: $("at-dtfim-prev").value || null,
     dtini_real: $("at-dtini-real").value || null, dtfim_real: $("at-dtfim-real").value || null,
     observacoes: $("at-observacoes").value.trim(),
@@ -2028,6 +2016,21 @@ async function saveAtividade(){
   }
 }
 
+async function refreshResponsaveis(){
+  const resp = await api(`/atividades/${editingAtividadeId}/recursos`);
+  $("at-resp-list").innerHTML = resp.length ? resp.map(r=>`
+    <li><span>${esc(r.recurso_nome)} <span class="muted">(${esc(r.tipo_vinculo||"—")})</span></span>
+    <button class="btn ghost" data-resp="${r.recurso_id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum responsável adicionado ainda.</li>`;
+  $("at-resp-list").querySelectorAll("button[data-resp]").forEach(b=>b.addEventListener("click", async ()=>{
+    await api(`/atividades/${editingAtividadeId}/recursos/${b.dataset.resp}`, {method:"DELETE"});
+    await refreshResponsaveis();
+    await loadAtividades(); renderCronograma(); renderDashboard();
+  }));
+  const jaAdicionados = new Set(resp.map(r=>r.recurso_id));
+  const recursoLabel = r => `${esc(r.nome)} (${esc(r.tipo_vinculo||"—")}${r.cargo?" · "+esc(r.cargo):""})`;
+  $("at-resp-add-select").innerHTML = RECURSOS.filter(r=>!jaAdicionados.has(r.id))
+    .map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
+}
 async function refreshDeps(){
   const deps = await api(`/atividades/${editingAtividadeId}/dependencias`);
   $("at-deps-list").innerHTML = deps.length ? deps.map(d=>`

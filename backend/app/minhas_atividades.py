@@ -2,13 +2,15 @@
 "Minhas atividades" — grade semanal do consultor logado.
 
 Cada usuário logado (tabela `usuarios`) enxerga aqui as atividades do
-cronograma em que o profissional vinculado a ele (tabela `recursos`) aparece
-como Responsável Techne OU Responsável cliente. O vínculo entre as duas
-tabelas não é uma coluna nova: é resolvido em tempo de consulta comparando
-o e-mail de login com o e-mail cadastrado no Responsável (ambos
-case-insensitive) — ver `recursos_do_usuario()`. Um usuário cujo e-mail não
-bate com nenhum Responsável cadastrado simplesmente não tem nada pra ver
-aqui (a rota devolve `vinculado: False`, e o front-end explica o que fazer).
+cronograma em que o profissional vinculado a ele (tabela `recursos`) é um dos
+participantes (tabela `atividade_recurso`, N:N — desde a migração 012, uma
+atividade pode ter quantos participantes forem necessários, de qualquer tipo
+de vínculo). O vínculo "usuário logado -> profissional" não é uma coluna
+nova: é resolvido em tempo de consulta comparando o e-mail de login com o
+e-mail cadastrado no Responsável (ambos case-insensitive) — ver
+`recursos_do_usuario()`. Um usuário cujo e-mail não bate com nenhum
+Responsável cadastrado simplesmente não tem nada pra ver aqui (a rota devolve
+`vinculado: False`, e o front-end explica o que fazer).
 
 Desde a 16ª rodada, a grade traz atividades de TODOS os projetos em que o
 profissional está delegado, não só do projeto selecionado no cabeçalho —
@@ -19,34 +21,36 @@ atender vários clientes ao mesmo tempo, inclusive na mesma semana. Ver
 `montar_grade()`.
 
 Para cada atividade, a grade mostra os dias úteis da semana escolhida (por
-padrão, a semana atual) com a hora prevista de cada dia. Essa quebra diária
-é gerada automaticamente, uma única vez por atividade (`garantir_dias()`),
+padrão, a semana atual) com a hora prevista de cada dia. Essa quebra diária é
+gerada automaticamente, uma única vez POR PARTICIPANTE (`garantir_dias()`),
 dividindo `atividades.prazo_horas` igualmente pelos dias úteis entre
-`dtini_prev` e `dtfim_prev` — dali em diante a tabela `atividade_horas_dia`
-passa a ser a fonte de verdade daquela atividade, dia a dia (editar o total
-geral ou as datas da atividade depois não regenera a grade — ver comentário
-em db/schema.sql, seção 18).
+`dtini_prev` e `dtfim_prev` — cada participante recebe a MESMA distribuição
+prevista (não dividida entre eles) e passa a ter sua própria linha em
+`atividade_horas_dia`, dali em diante a fonte de verdade daquele participante
+naquela atividade, dia a dia (editar o total geral ou as datas da atividade
+depois não regenera a grade — ver comentário em db/schema.sql, seção 18).
 
-Cabe ao consultor, em cada dia: (a) ajustar o número de horas previstas
-daquele dia (`ajustar_dia`), ou (b) simplesmente confirmar a execução
-(`confirmar_dia`, que grava `horas_realizadas` = o valor informado, ou o
-previsto atual se nada for informado). Editar o previsto de um dia já
-confirmado desfaz a confirmação (força reconfirmar), pra nunca deixar uma
-hora "confirmada" que não corresponde mais ao número exibido.
+Cabe a cada consultor, em cada dia de CADA atividade em que participa: (a)
+ajustar o número de horas previstas daquele dia (`ajustar_dia`), ou (b)
+simplesmente confirmar a execução (`confirmar_dia`, que grava
+`horas_realizadas` = o valor informado, ou o previsto atual se nada for
+informado). Editar o previsto de um dia já confirmado desfaz a confirmação
+(força reconfirmar), pra nunca deixar uma hora "confirmada" que não
+corresponde mais ao número exibido.
 
-Até a 16ª rodada, nenhuma ação aqui tocava `atividades.horas_realizadas` (o
-total agregado, editável manualmente no modal da atividade desde a 4ª
-rodada) — de propósito, para não sobrescrever silenciosamente um valor
-lançado por outro caminho. A partir da 16ª rodada (parte 3), a pedido
-explícito do usuário, isso mudou: uma vez que uma atividade tem quebra
-diária (ou seja, já apareceu em "Minhas atividades" de alguém),
-`atividades.horas_realizadas` passa a ser a SOMA dos dias já confirmados
-aqui, recalculada a cada ajuste/confirmação/desconfirmação — ver
-`_sincronizar_horas_realizadas()`. O campo manual do modal de atividade
-(`backend/app/main.py:update_atividade`) passa a ser ignorado nesse caso
-(e o front-end trava o campo), evitando os dois números divergirem.
-Atividades que nunca tiveram quebra diária gerada continuam com o campo
-100% manual, como sempre foi.
+`atividades.horas_realizadas` (o total agregado, editável manualmente no
+modal da atividade desde a 4ª rodada) é INDEPENDENTE do que acontece
+aqui — nenhuma ação nesta tela grava nesse campo. Isso já foi tentado uma vez
+(16ª rodada, parte 3: um cálculo automático que somava os dias confirmados) e
+revertido a pedido do usuário: uma atividade do cronograma pode ter vários
+responsáveis envolvidos (ex: uma reunião gerencial com 4 pessoas da Techne e
+5 do cliente), e cada um aponta e confirma as PRÓPRIAS horas aqui, de forma
+totalmente independente dos demais (`atividade_horas_dia` é por
+`atividade_id` + `recurso_id`, não mais só por `atividade_id`) — mas isso não
+deve alterar o total previsto/realizado da atividade no Cronograma, que
+continua sendo um número único, editado à parte (ex: a reunião continua
+prevista/realizada em 2h no Cronograma, independente de quantas pessoas
+participaram ou de quantas horas cada uma apontou individualmente).
 """
 import uuid
 from datetime import date, timedelta
@@ -110,35 +114,17 @@ def _dias_uteis_periodo(data_ini, data_fim, non_working):
     return dias or [data_ini]
 
 
-def _sincronizar_horas_realizadas(atividade_id):
-    """16ª rodada (parte 3): grava em `atividades.horas_realizadas` a soma
-    das `horas_realizadas` dos dias já CONFIRMADOS desta atividade em
-    `atividade_horas_dia`. Chamada (a) quando a quebra diária é gerada pela
-    primeira vez (o total nasce em 0 — nada foi confirmado ainda) e (b) a
-    cada ajustar/confirmar/desconfirmar um dia. A partir do momento em que
-    isso roda pela primeira vez para uma atividade, o campo manual do modal
-    de atividade deixa de valer (ver `tem_apontamento_diario` em
-    `backend/app/main.py:ATIVIDADE_SELECT` e o bloqueio em
-    `update_atividade`) — este total, não mais uma digitação manual, é a
-    fonte de verdade dali em diante."""
-    linha = db.fetch_one(f"""
-        SELECT COALESCE(SUM(horas_realizadas), 0) AS total
-        FROM atividade_horas_dia
-        WHERE atividade_id = {db.q(atividade_id)} AND confirmado = TRUE
-    """)
-    total = linha["total"] if linha else 0
-    db.execute(f"UPDATE atividades SET horas_realizadas = {db.q(total)} WHERE id = {db.q(atividade_id)}")
-
-
-def garantir_dias(atividade, non_working):
-    """Gera a quebra diária (atividade_horas_dia) da atividade inteira, uma
-    única vez. Idempotente: se já existir qualquer linha para esta
-    atividade, não faz nada (ver docstring do módulo — a grade diária, uma
-    vez criada, é a fonte de verdade). Não gera nada se a atividade não tiver
+def garantir_dias(atividade, recurso_id, non_working):
+    """Gera a quebra diária (atividade_horas_dia) da atividade inteira PARA
+    UM PARTICIPANTE específico, uma única vez. Idempotente: se já existir
+    qualquer linha para este par (atividade, recurso), não faz nada (ver
+    docstring do módulo — a grade diária, uma vez criada, é a fonte de
+    verdade daquele participante). Não gera nada se a atividade não tiver
     data de início/fim previstas ou horas previstas cadastradas (não há como
     distribuir)."""
     ja_existe = db.fetch_one(
-        f"SELECT 1 AS x FROM atividade_horas_dia WHERE atividade_id = {db.q(atividade['id'])} LIMIT 1"
+        f"SELECT 1 AS x FROM atividade_horas_dia "
+        f"WHERE atividade_id = {db.q(atividade['id'])} AND recurso_id = {db.q(recurso_id)} LIMIT 1"
     )
     if ja_existe:
         return
@@ -156,29 +142,30 @@ def garantir_dias(atividade, non_working):
         h = round(prazo - acumulado, 2) if i == len(dias) - 1 else horas_por_dia
         acumulado += h
         valores.append(
-            f"({db.q(str(uuid.uuid4()))}, {db.q(atividade['id'])}, {db.q(d.isoformat())}, {db.q(h)})"
+            f"({db.q(str(uuid.uuid4()))}, {db.q(atividade['id'])}, {db.q(recurso_id)}, {db.q(d.isoformat())}, {db.q(h)})"
         )
-    sql = "INSERT INTO atividade_horas_dia (id, atividade_id, data, horas_previstas) VALUES " + ", ".join(valores)
+    sql = (
+        "INSERT INTO atividade_horas_dia (id, atividade_id, recurso_id, data, horas_previstas) VALUES "
+        + ", ".join(valores)
+    )
     db.execute(sql)
-    # A partir de agora esta atividade tem quebra diária — sincroniza
-    # atividades.horas_realizadas (nasce em 0, já que nada foi confirmado
-    # ainda) e, a partir daqui, o campo manual do modal fica travado.
-    _sincronizar_horas_realizadas(atividade["id"])
 
 
 def montar_grade(usuario, data_ref: date):
     """Monta a resposta completa de GET /api/minhas-atividades: a semana
-    (seg-sex) ao redor de data_ref, e cada atividade delegada ao(s)
-    profissional(is) vinculado(s) ao usuário logado, com os 5 dias da grade.
+    (seg-sex) ao redor de data_ref, e cada atividade em que o(s)
+    profissional(is) vinculado(s) ao usuário logado participa (tabela
+    atividade_recurso), com os 5 dias da grade — cada linha retornada já é
+    escopada a UM participante específico (`recurso_id`), então se a mesma
+    atividade tiver outros participantes, cada um tem sua própria grade
+    independente, vista apenas quando ELE está logado.
 
     16ª rodada: deixou de receber `projeto_id` e de filtrar por ele. "Minhas
     atividades" é um apontamento pessoal de horas trabalhadas na empresa —
     o mesmo profissional pode estar delegado em atividades de vários
     projetos (clientes) ao mesmo tempo, inclusive na mesma semana, já que
     `recursos` sempre foi uma tabela global (sem `projeto_id`), sem nenhuma
-    trava impedindo isso no banco. Antes disso a tela só olhava para o
-    projeto selecionado no seletor do cabeçalho, escondendo atividades de
-    outros projetos na mesma semana. Cada atividade retornada agora traz
+    trava impedindo isso no banco. Cada atividade retornada traz
     `projeto_id`/`projeto_sigla`/`projeto_nome` para o front-end identificar
     de qual projeto ela é."""
     recursos = recursos_do_usuario(usuario.get("email") if usuario else None)
@@ -197,15 +184,13 @@ def montar_grade(usuario, data_ref: date):
         SELECT a.id, a.nome, a.codigo_wbs, a.status, a.prazo_horas, a.dtini_prev, a.dtfim_prev,
                a.projeto_id, p.sigla AS projeto_sigla, p.nome AS projeto_nome,
                e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
-               rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome
+               ar.recurso_id AS recurso_id
         FROM atividades a
+        JOIN atividade_recurso ar ON ar.atividade_id = a.id AND ar.recurso_id IN ({placeholders})
         JOIN projetos p ON p.id = a.projeto_id
         JOIN etapas e ON e.id = a.etapa_id
         JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
-        LEFT JOIN recursos rt ON rt.id = a.responsavel_techne_id
-        LEFT JOIN recursos rc ON rc.id = a.responsavel_cliente_id
-        WHERE (a.responsavel_techne_id IN ({placeholders}) OR a.responsavel_cliente_id IN ({placeholders}))
-          AND a.dtini_prev IS NOT NULL AND a.dtfim_prev IS NOT NULL AND a.prazo_horas IS NOT NULL
+        WHERE a.dtini_prev IS NOT NULL AND a.dtfim_prev IS NOT NULL AND a.prazo_horas IS NOT NULL
           AND a.dtini_prev <= {db.q(fim.isoformat())} AND a.dtfim_prev >= {db.q(inicio.isoformat())}
         ORDER BY p.sigla NULLS LAST, p.nome, e.numero, a.codigo_wbs NULLS LAST, a.nome
     """)
@@ -219,25 +204,30 @@ def montar_grade(usuario, data_ref: date):
         pid = a["projeto_id"]
         if pid not in non_working_por_projeto:
             non_working_por_projeto[pid] = _non_working(pid)
-        garantir_dias(a, non_working_por_projeto[pid])
+        garantir_dias(a, a["recurso_id"], non_working_por_projeto[pid])
 
-    por_atividade = {}
+    por_atividade_recurso = {}
     if atividades:
-        id_list = ", ".join(db.q(a["id"]) for a in atividades)
+        pares = ", ".join(
+            f"({db.q(a['id'])}, {db.q(a['recurso_id'])})" for a in atividades
+        )
         linhas = db.fetch_all(f"""
             SELECT * FROM atividade_horas_dia
-            WHERE atividade_id IN ({id_list}) AND data BETWEEN {db.q(inicio.isoformat())} AND {db.q(fim.isoformat())}
+            WHERE (atividade_id, recurso_id) IN ({pares})
+              AND data BETWEEN {db.q(inicio.isoformat())} AND {db.q(fim.isoformat())}
         """)
         for l in linhas:
-            por_atividade.setdefault(l["atividade_id"], {})[_parse_data(l["data"]).isoformat()] = l
+            chave = (l["atividade_id"], l["recurso_id"])
+            por_atividade_recurso.setdefault(chave, {})[_parse_data(l["data"]).isoformat()] = l
 
     resultado = []
     for a in atividades:
         dtini, dtfim = _parse_data(a["dtini_prev"]), _parse_data(a["dtfim_prev"])
         non_working = non_working_por_projeto[a["projeto_id"]]
+        dias_por_data = por_atividade_recurso.get((a["id"], a["recurso_id"]), {})
         dias_resp = []
         for d in dias_semana:
-            linha = por_atividade.get(a["id"], {}).get(d.isoformat())
+            linha = dias_por_data.get(d.isoformat())
             dias_resp.append({
                 "data": d.isoformat(),
                 "dentro_periodo": dtini <= d <= dtfim,
@@ -258,18 +248,19 @@ def montar_grade(usuario, data_ref: date):
 
 
 def _linha_autorizada(horas_dia_id, recurso_ids):
-    """Confirma que a linha existe E que a atividade dona dela está mesmo
-    delegada a um dos profissionais vinculados ao usuário logado — sem isso,
-    qualquer usuário logado poderia editar as horas de qualquer atividade só
-    sabendo o id da linha."""
+    """Confirma que a linha existe E que ela pertence a um dos profissionais
+    vinculados ao usuário logado — sem isso, qualquer usuário logado poderia
+    editar as horas de qualquer atividade só sabendo o id da linha. Desde a
+    migração 012, cada linha já pertence a UM participante específico
+    (`recurso_id`), então essa checagem também garante que um participante
+    nunca mexe nas horas apontadas por OUTRO participante da mesma
+    atividade."""
     if not recurso_ids:
         return None
     placeholders = ", ".join(db.q(rid) for rid in recurso_ids)
     return db.fetch_one(f"""
-        SELECT hd.* FROM atividade_horas_dia hd
-        JOIN atividades a ON a.id = hd.atividade_id
-        WHERE hd.id = {db.q(horas_dia_id)}
-          AND (a.responsavel_techne_id IN ({placeholders}) OR a.responsavel_cliente_id IN ({placeholders}))
+        SELECT * FROM atividade_horas_dia
+        WHERE id = {db.q(horas_dia_id)} AND recurso_id IN ({placeholders})
     """)
 
 
@@ -292,14 +283,12 @@ def ajustar_dia(horas_dia_id, usuario, horas_previstas):
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
     valor = _validar_horas(horas_previstas)
-    resultado = db.execute_returning_one(f"""
+    return db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET horas_previstas = {db.q(valor)}, confirmado = FALSE, confirmado_em = NULL, confirmado_por = NULL
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
-    _sincronizar_horas_realizadas(linha["atividade_id"])
-    return resultado
 
 
 def confirmar_dia(horas_dia_id, usuario, horas=None):
@@ -311,15 +300,13 @@ def confirmar_dia(horas_dia_id, usuario, horas=None):
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
     valor = _validar_horas(horas) if horas is not None else _validar_horas(linha["horas_previstas"])
-    resultado = db.execute_returning_one(f"""
+    return db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET horas_realizadas = {db.q(valor)}, confirmado = TRUE,
             confirmado_em = now(), confirmado_por = {db.q(usuario["id"])}
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
-    _sincronizar_horas_realizadas(linha["atividade_id"])
-    return resultado
 
 
 def desconfirmar_dia(horas_dia_id, usuario):
@@ -328,11 +315,9 @@ def desconfirmar_dia(horas_dia_id, usuario):
     linha = _linha_autorizada(horas_dia_id, recurso_ids)
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
-    resultado = db.execute_returning_one(f"""
+    return db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET confirmado = FALSE, confirmado_em = NULL, confirmado_por = NULL
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
-    _sincronizar_horas_realizadas(linha["atividade_id"])
-    return resultado

@@ -793,10 +793,10 @@ def confirmar(token, projeto_id, mapeamento_etapas, mapeamento_frentes):
         elif aprox:
             horas_aproximadas += 1
 
+        # Desde a migração 012, TODOS os recursos encontrados na planilha para esta
+        # tarefa (não mais só "o primeiro Techne" e "o primeiro do cliente") viram
+        # participantes da atividade em atividade_recurso — ver mais abaixo.
         recursos = parse_recursos(n.recursos_txt, recurso_info, cliente_sigla)
-        techne = next((r for r in recursos if r.startswith("Techne")), None)
-        cliente = next((r for r in recursos if cliente_sigla and r.startswith(cliente_sigla)), None)
-        extras = [r for r in recursos if r not in (techne, cliente)]
 
         pct = n.pct or 0
         if pct >= 100:
@@ -851,6 +851,17 @@ def confirmar(token, projeto_id, mapeamento_etapas, mapeamento_frentes):
                 # quando outros campos também mudam na mesma instrução.
                 statements_atividades.append(_sql_update("atividades", atividade_id, campos_atividade))
                 atualizadas += 1
+                # Reimportação: só ADICIONA participantes novos encontrados na planilha
+                # (nunca remove um que já esteja cadastrado manualmente — mesmo espírito
+                # da importação de dependências, que também só adiciona).
+                for nome_recurso in recursos:
+                    rid = recurso_id_by_nome.get(nome_recurso)
+                    if rid:
+                        statements_atividades.append(
+                            f"INSERT INTO atividade_recurso (atividade_id, recurso_id) "
+                            f"VALUES ({db.q(atividade_id)}, {db.q(rid)}) "
+                            f"ON CONFLICT (atividade_id, recurso_id) DO NOTHING;"
+                        )
             else:
                 atividade_id = str(uuid_lib.uuid4())
                 status_inicial = status_sugerido if status_sugerido != "Não iniciada" else None
@@ -859,8 +870,6 @@ def confirmar(token, projeto_id, mapeamento_etapas, mapeamento_frentes):
                     "id": atividade_id,
                     "projeto_id": projeto_id,
                     "tipo_atividade_elementar_id": classificar_tipo(n.nome),
-                    "responsavel_techne_id": recurso_id_by_nome.get(techne) if techne else None,
-                    "responsavel_cliente_id": recurso_id_by_nome.get(cliente) if cliente else None,
                     "observacoes": (
                         f"Importado do cronograma (EDT {n.edt}, Id original {n.origem_id})."
                         + (" Duração original em dias/semanas corridos, convertida em horas por aproximação (×8h/dia)."
@@ -874,8 +883,8 @@ def confirmar(token, projeto_id, mapeamento_etapas, mapeamento_frentes):
                     nova["status"] = status_inicial
                 statements_atividades.append(_sql_insert("atividades", nova))
                 criadas += 1
-                for extra_nome in extras:
-                    rid = recurso_id_by_nome.get(extra_nome)
+                for nome_recurso in recursos:
+                    rid = recurso_id_by_nome.get(nome_recurso)
                     if rid:
                         statements_atividades.append(_sql_insert("atividade_recurso", {
                             "atividade_id": atividade_id, "recurso_id": rid,
