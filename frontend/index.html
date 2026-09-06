@@ -56,13 +56,21 @@
   .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
 
   /* ---- shell ---- */
+  /* Cabeçalho em duas linhas (15ª/16ª rodada): 1ª linha = identidade (logo/
+     empresa à esquerda, usuário/data-hora/Sair à direita); 2ª linha = projeto
+     ativo + navegação do sistema. "Dados do projeto" saiu daqui e virou uma
+     aba dentro de Configurações — ver #cfg-projeto-pane mais abaixo. */
   header.topbar{
     background:var(--surface);border-bottom:1px solid var(--border);
-    padding:12px 22px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+    padding:10px 22px;display:flex;flex-direction:column;gap:10px;
     position:sticky;top:0;z-index:20;
   }
-  header.topbar h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-.01em;}
-  header.topbar .proj{font-size:12px;color:var(--text-muted);}
+  .topbar-row{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+  .topbar-row-1{justify-content:space-between;}
+  .topbar-row-1-right{display:flex;align-items:center;gap:14px;margin-left:auto;}
+  .topbar-datahora{font-size:12px;color:var(--text-muted);font-family:'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap;}
+  .topbar-projeto{display:flex;align-items:center;gap:8px;}
+  .topbar-projeto-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
   select.proj-select{
     background:var(--surface);border:1px solid var(--border);border-radius:7px;
     padding:5px 8px;font-size:12px;color:var(--text-muted);font-family:inherit;
@@ -141,6 +149,29 @@
 
   .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;}
   .dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+
+  /* ---- minhas atividades (grade semanal) ---- */
+  table.ma-table{min-width:760px;}
+  table.ma-table td.ma-atividade{min-width:220px;}
+  table.ma-table td.ma-atividade .wbs{color:var(--text-faint);font-family:'IBM Plex Mono';font-size:11px;}
+  table.ma-table td.ma-atividade .sub{color:var(--text-muted);font-size:11.5px;margin-top:2px;}
+  table.ma-table td.ma-dia{text-align:center;min-width:96px;}
+  table.ma-table td.ma-total{text-align:right;white-space:nowrap;font-family:'IBM Plex Mono';font-weight:600;}
+  .ma-cell{display:inline-flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border-radius:8px;}
+  .ma-cell input[type=number]{
+    width:64px;text-align:center;background:var(--surface);border:1px solid var(--border);
+    border-radius:6px;padding:4px 6px;font-size:12.5px;color:var(--text);font-family:inherit;
+  }
+  .ma-cell input[type=number]:disabled{opacity:.7;background:var(--surface-2);}
+  .ma-cell button.ma-confirmar{
+    background:transparent;border:1px solid var(--border);border-radius:6px;padding:2px 8px;
+    font-size:11px;cursor:pointer;color:var(--text-muted);font-family:inherit;
+  }
+  .ma-cell button.ma-confirmar:hover{background:var(--surface-2);color:var(--text);}
+  .ma-cell.confirmado{background:var(--ok-soft);}
+  .ma-cell.confirmado button.ma-confirmar{background:var(--ok);color:#fff;border-color:var(--ok);}
+  .ma-dia.fora-periodo{color:var(--text-faint);}
+  .ma-feriado-tag{font-size:9.5px;color:var(--text-faint);}
 
   /* ---- gantt ---- */
   .gantt-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:auto;margin-bottom:16px;}
@@ -252,28 +283,35 @@
 </div>
 
 <header class="topbar" id="app-header" hidden>
-  <div class="topbar-marca" id="topbar-marca">
-    <img id="topbar-logo" src="" alt="Logo da empresa" hidden>
-    <div class="topbar-empresa" id="topbar-empresa" hidden></div>
+  <!-- 1ª linha: identidade — logo/empresa à esquerda, usuário/data-hora/Sair à direita. -->
+  <div class="topbar-row topbar-row-1">
+    <div class="topbar-marca" id="topbar-marca">
+      <img id="topbar-logo" src="" alt="Logo da empresa" hidden>
+      <div class="topbar-empresa" id="topbar-empresa" hidden></div>
+    </div>
+    <div class="topbar-row-1-right">
+      <span class="topbar-datahora" id="topbar-datahora"></span>
+      <button class="btn ghost small" id="user-chip-nome" title="Alterar minha senha"></button>
+      <button class="btn ghost small" id="btn-logout" title="Sair">Sair</button>
+    </div>
   </div>
-  <div>
-    <h1>Ergon PM</h1>
-    <select class="proj-select" id="proj-label" title="Trocar de projeto">
-      <option value="">Carregando projeto…</option>
-    </select>
-  </div>
-  <button class="btn ghost small" id="btn-edit-projeto" style="display:none;margin-left:auto;">⚙ Dados do projeto</button>
-  <nav class="tabs" id="tabs">
-    <button data-view="dashboard" class="active">Dashboard</button>
-    <button data-view="cronograma">Cronograma</button>
-    <button data-view="critico">Caminho Crítico</button>
-    <button data-view="requisitos">Requisitos TR</button>
-    <button data-view="riscos">Riscos &amp; Marcos</button>
-    <button data-view="configuracoes">⚙ Configurações</button>
-  </nav>
-  <div style="display:flex;align-items:center;gap:8px;margin-left:12px;">
-    <button class="btn ghost small" id="user-chip-nome" title="Alterar minha senha"></button>
-    <button class="btn ghost small" id="btn-logout" title="Sair">Sair</button>
+  <!-- 2ª linha: projeto ativo + navegação do sistema. -->
+  <div class="topbar-row topbar-row-2">
+    <div class="topbar-projeto">
+      <span class="topbar-projeto-label">Projetos</span>
+      <select class="proj-select" id="proj-label" title="Trocar de projeto">
+        <option value="">Carregando projeto…</option>
+      </select>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="cronograma">Cronograma</button>
+      <button data-view="critico">Caminho Crítico</button>
+      <button data-view="requisitos">Requisitos TR</button>
+      <button data-view="riscos">Riscos &amp; Marcos</button>
+      <button data-view="minhas-atividades">Minhas atividades</button>
+      <button data-view="configuracoes">⚙ Configurações</button>
+    </nav>
   </div>
 </header>
 
@@ -424,12 +462,40 @@
     </div>
   </section>
 
+  <!-- ============ MINHAS ATIVIDADES ============ -->
+  <section class="view" id="view-minhas-atividades">
+    <h2 class="view-title">Minhas atividades</h2>
+    <div class="view-sub">Atividades delegadas a você (como Responsável Techne ou cliente) na semana selecionada — ajuste as horas de cada dia ou apenas confirme a execução.</div>
+
+    <div class="filters">
+      <button class="btn secondary small" id="ma-prev">‹ Semana anterior</button>
+      <div class="muted" id="ma-semana-label" style="font-weight:600;min-width:160px;"></div>
+      <button class="btn secondary small" id="ma-next">Próxima semana ›</button>
+      <button class="btn ghost small" id="ma-hoje" style="margin-left:auto;">Semana atual</button>
+    </div>
+
+    <div class="card" id="ma-nao-vinculado" hidden>
+      <h3>Sem vínculo com um profissional cadastrado</h3>
+      <div class="view-sub" style="margin-top:-6px;margin-bottom:0;">
+        O e-mail do seu login não corresponde ao e-mail de nenhum Responsável cadastrado. Peça para alguém cadastrar (ou corrigir) o seu e-mail em <b>Configurações › Responsáveis</b> para que suas atividades apareçam aqui.
+      </div>
+    </div>
+
+    <div class="table-wrap" id="ma-table-wrap">
+      <table class="ma-table">
+        <thead><tr id="ma-thead-row"><th>Atividade</th></tr></thead>
+        <tbody id="ma-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ============ CONFIGURAÇÕES ============ -->
   <section class="view" id="view-configuracoes">
     <h2 class="view-title">Configurações</h2>
-    <div class="view-sub">Cadastros base do projeto: responsáveis, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
+    <div class="view-sub">Cadastros base do projeto: dados do projeto, responsáveis, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
     <div class="modal-tabs" id="cfg-tabs" style="border:none;padding:0;margin-bottom:16px;">
-      <button data-cfg="responsaveis" class="active">Responsáveis</button>
+      <button data-cfg="projeto" class="active">Dados do Projeto</button>
+      <button data-cfg="responsaveis">Responsáveis</button>
       <button data-cfg="etapas">Etapas</button>
       <button data-cfg="frentes">Frentes de Trabalho</button>
       <button data-cfg="tipos">Tipos de Atividade Elementar</button>
@@ -444,6 +510,32 @@
         <thead id="cfg-thead"></thead>
         <tbody id="cfg-tbody"></tbody>
       </table>
+    </div>
+
+    <!-- Dados do Projeto (16ª rodada): antes era um botão dedicado no
+         cabeçalho ("⚙ Dados do projeto"); mudou pra cá porque é um cadastro
+         de configuração do projeto, igual aos demais desta tela. É um resumo
+         somente-leitura — editar continua abrindo o mesmo modal completo de
+         sempre (overlay-projeto), reaproveitado sem nenhuma duplicação de
+         campo — ver renderProjetoPane() no JS. -->
+    <div id="cfg-projeto-pane" hidden style="max-width:640px;">
+      <div class="card">
+        <h3>Dados do projeto ativo</h3>
+        <div class="view-sub" style="margin-top:-6px;">Identificação, responsáveis e prazos do projeto selecionado no topo da tela.</div>
+        <div class="field-view-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin:14px 0;font-size:13px;">
+          <div><span class="muted" style="display:block;font-size:11.5px;">Sigla</span><span id="cfg-projeto-sigla">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Instituição</span><span id="cfg-projeto-instituicao">—</span></div>
+          <div style="grid-column:1/-1;"><span class="muted" style="display:block;font-size:11.5px;">Nome do projeto</span><span id="cfg-projeto-nome">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Fiscal do projeto</span><span id="cfg-projeto-fiscal">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Gestor do projeto</span><span id="cfg-projeto-gestor">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Início previsto</span><span id="cfg-projeto-inicio">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Fim previsto</span><span id="cfg-projeto-fim">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Prazo total</span><span id="cfg-projeto-prazo">—</span></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button class="btn" id="cfg-projeto-editar">✎ Editar dados do projeto</button>
+        </div>
+      </div>
     </div>
 
     <!-- Parâmetros do site: não é uma lista de registros como as outras
@@ -936,6 +1028,7 @@ let USUARIO_LOGADO = null;
 let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
 let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[];
 let editingAtividadeId=null, editingRequisitoId=null;
+let MA_DATA_REF=new Date(), MA_GRADE=null; // "Minhas atividades" — data de referência da semana mostrada e último retorno do servidor
 const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
 
 function byId(list, id){ return list.find(x=>x.id===id); }
@@ -1003,6 +1096,9 @@ async function recarregarDadosDoProjeto(){
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
   fillStaticSelects();
   renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
+  // "Minhas atividades" é carregada sob demanda (mesmo padrão do Caminho Crítico, ver goToView) —
+  // só recarrega aqui se o usuário estiver com essa aba aberta no momento da troca de projeto.
+  if(document.getElementById("view-minhas-atividades").classList.contains("active")) carregarMinhasAtividades();
 }
 
 // ---------------- autenticação: tela de login/cadastro/esqueci-senha ----------------
@@ -1140,11 +1236,22 @@ function wireTrocarSenha(){
   });
 }
 
+// Relógio do cabeçalho (16ª rodada) — data e hora atuais, ao lado do nome do
+// usuário logado. Atualiza sozinho a cada 30s (não precisa de precisão de
+// segundo pra um relógio de cabeçalho); fica de graça mesmo com o cabeçalho
+// ainda escondido (tela de login), então liga uma única vez no boot().
+function atualizarRelogioTopo(){
+  const el = $("topbar-datahora");
+  if(el) el.textContent = new Date().toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"});
+}
+
 async function boot(){
   wireAuthScreen();
   wireTrocarSenha();
   wireProjetoModal();
   wireSeletorProjeto();
+  atualizarRelogioTopo();
+  setInterval(atualizarRelogioTopo, 30000);
   USUARIO_LOGADO = await verificarSessao();
   if(!USUARIO_LOGADO){ mostrarAuthScreen("login"); return; }
   mostrarApp();
@@ -1176,7 +1283,7 @@ async function afterProjetoReady(){
   aplicarMarcaNoTopo();
   fillStaticSelects();
   wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
-  wireConfiguracoes(); wireParametros();
+  wireConfiguracoes(); wireParametros(); wireMinhasAtividades();
   setupCsvTemplateLink();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
   // Reaplica agora que REQUISITOS já está carregado — o select "Item do TR" da
@@ -1184,7 +1291,6 @@ async function afterProjetoReady(){
   fillStaticSelects();
   renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
   $("tabs").style.display = "flex";
-  $("btn-edit-projeto").style.display = "inline-flex";
 }
 
 function fillStaticSelects(){
@@ -1226,6 +1332,110 @@ function fillStaticSelects(){
   $("rf-status").innerHTML = `<option value="">Status (todos)</option>` + statusReq.map(c=>`<option>${c}</option>`).join("");
 }
 
+// ================= MINHAS ATIVIDADES (grade semanal do consultor logado) =================
+// Cada dia de cada atividade delegada ao usuário logado vira uma célula com
+// um número (horas previstas) e um botão "Confirmar" — ver
+// backend/app/minhas_atividades.py para a regra completa (geração da grade,
+// autorização, o que confirmar/desconfirmar faz). A semana mostrada fica só
+// em memória (MA_DATA_REF) — reabrir a aba sempre volta pra semana atual.
+async function carregarMinhasAtividades(){
+  const iso = toISO(MA_DATA_REF);
+  try{
+    MA_GRADE = await api(`/minhas-atividades?projeto_id=${PROJETO.id}&semana=${iso}`);
+  }catch(e){ return; }
+  renderMinhasAtividades();
+}
+
+function celulaHorasDia(d){
+  if(!d.dentro_periodo || !d.id){
+    return `<td class="ma-dia fora-periodo">—</td>`;
+  }
+  const confirmado = d.confirmado;
+  const valor = confirmado ? d.horas_realizadas : d.horas_previstas;
+  return `<td class="ma-dia">
+    <div class="ma-cell ${confirmado?'confirmado':''}" data-horas-dia-id="${d.id}">
+      <input type="number" step="0.5" min="0" value="${valor==null?'':valor}" ${confirmado?'disabled':''}>
+      ${d.feriado?'<div class="ma-feriado-tag">feriado</div>':''}
+      <button class="ma-confirmar" type="button">${confirmado?'✓ Confirmado':'Confirmar'}</button>
+    </div>
+  </td>`;
+}
+
+function renderMinhasAtividades(){
+  if(!MA_GRADE) return;
+  const dias = MA_GRADE.semana.dias;
+  $("ma-semana-label").textContent = `${fmtDate(dias[0])} a ${fmtDate(dias[dias.length-1])}`;
+  $("ma-nao-vinculado").hidden = MA_GRADE.vinculado;
+  $("ma-table-wrap").hidden = !MA_GRADE.vinculado;
+  if(!MA_GRADE.vinculado) return;
+
+  const nomesDia = ["Seg","Ter","Qua","Qui","Sex"];
+  $("ma-thead-row").innerHTML = `<th>Atividade</th>` +
+    dias.map((d,i)=>`<th>${nomesDia[i]||""}<br><span style="font-weight:400;text-transform:none;">${fmtDate(d)}</span></th>`).join("") +
+    `<th>Total</th>`;
+
+  const tbody = $("ma-tbody");
+  if(!MA_GRADE.atividades.length){
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${dias.length+2}">Nenhuma atividade delegada a você com dias previstos nesta semana.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = MA_GRADE.atividades.map(a=>{
+    let totalPrev=0, totalReal=0;
+    const celulas = a.dias.map(d=>{
+      if(d.horas_previstas!=null) totalPrev += Number(d.horas_previstas);
+      if(d.confirmado && d.horas_realizadas!=null) totalReal += Number(d.horas_realizadas);
+      return celulaHorasDia(d);
+    }).join("");
+    const subtitulo = [a.etapa_nome, a.frente_nome].filter(Boolean).join(" / ");
+    return `<tr>
+      <td class="ma-atividade">
+        <div>${esc(a.nome)}</div>
+        <div class="sub">${a.codigo_wbs?`<span class="wbs">${esc(a.codigo_wbs)}</span> · `:""}${esc(subtitulo)}</div>
+      </td>
+      ${celulas}
+      <td class="ma-total">${totalPrev.toFixed(1)}h${totalReal?` <span style="color:var(--ok);">/ ${totalReal.toFixed(1)}h</span>`:""}</td>
+    </tr>`;
+  }).join("");
+}
+
+function wireMinhasAtividades(){
+  $("ma-prev").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()-7); carregarMinhasAtividades(); });
+  $("ma-next").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()+7); carregarMinhasAtividades(); });
+  $("ma-hoje").addEventListener("click", ()=>{ MA_DATA_REF = new Date(); carregarMinhasAtividades(); });
+
+  // Editar o número de horas previstas de um dia (dispara ao sair do campo / Enter).
+  $("ma-tbody").addEventListener("change", async e=>{
+    const input = e.target.closest("input[type=number]"); if(!input) return;
+    const cell = input.closest(".ma-cell"); if(!cell) return;
+    const id = cell.dataset.horasDiaId;
+    const valor = input.value === "" ? 0 : Number(input.value);
+    try{
+      await api(`/minhas-atividades/dia/${id}`, {method:"PUT", body: JSON.stringify({horas_previstas: valor})});
+      toast("Horas previstas atualizadas.");
+      await carregarMinhasAtividades();
+    }catch(err){}
+  });
+
+  // Confirmar execução (grava o valor exibido como realizado) / clicar de novo desfaz a confirmação.
+  $("ma-tbody").addEventListener("click", async e=>{
+    const btn = e.target.closest("button.ma-confirmar"); if(!btn) return;
+    const cell = btn.closest(".ma-cell"); if(!cell) return;
+    const id = cell.dataset.horasDiaId;
+    const confirmado = cell.classList.contains("confirmado");
+    try{
+      if(confirmado){
+        await api(`/minhas-atividades/dia/${id}/desconfirmar`, {method:"POST"});
+      }else{
+        const input = cell.querySelector("input[type=number]");
+        const horas = input.value === "" ? null : Number(input.value);
+        await api(`/minhas-atividades/dia/${id}/confirmar`, {method:"POST", body: JSON.stringify({horas})});
+        toast("Execução confirmada.");
+      }
+      await carregarMinhasAtividades();
+    }catch(err){}
+  });
+}
+
 // ---------------- nav ----------------
 function wireNav(){
   $("tabs").addEventListener("click", e=>{
@@ -1257,6 +1467,7 @@ function goToView(view){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+view));
   if(view==="critico") loadCaminhoCritico();
+  if(view==="minhas-atividades") carregarMinhasAtividades();
 }
 
 // ================= ATIVIDADES: carregar/filtrar =================
@@ -1862,7 +2073,6 @@ function wireProjetoModal(){
   $("proj-close").addEventListener("click", closeProjetoModal);
   $("proj-cancel").addEventListener("click", closeProjetoModal);
   $("proj-save").addEventListener("click", saveProjeto);
-  $("btn-edit-projeto").addEventListener("click", ()=>openProjetoModal("editar"));
   $("proj-anexo-add").addEventListener("click", async ()=>{
     const file = $("proj-anexo-file").files[0]; if(!file || !PROJETO) return;
     const fd = new FormData(); fd.append("entidade_tipo","projeto"); fd.append("entidade_id", PROJETO.id); fd.append("file", file);
@@ -1935,6 +2145,7 @@ async function saveProjeto(){
       const idx = PROJETOS.findIndex(p=>p.id===PROJETO.id);
       if(idx>=0) PROJETOS[idx] = PROJETO;
       renderSeletorProjeto();
+      if(cfgAbaAtual === "projeto") renderProjetoPane();
       toast("Dados do projeto atualizados.");
       closeProjetoModal();
     } else {
@@ -2504,7 +2715,7 @@ const CONFIG_ENTIDADES = {
     ],
   },
 };
-let cfgAbaAtual = "responsaveis";
+let cfgAbaAtual = "projeto";
 let cfgEditandoId = null;
 
 function cfgDados(aba){
@@ -2519,6 +2730,7 @@ function wireConfiguracoes(){
     renderConfigTable();
   });
   $("cfg-add").addEventListener("click", ()=>openConfigModal(null));
+  $("cfg-projeto-editar").addEventListener("click", ()=>openProjetoModal("editar"));
   $("cfg-close").addEventListener("click", closeConfigModal);
   $("cfg-cancel").addEventListener("click", closeConfigModal);
   $("overlay-config").addEventListener("click", e=>{ if(e.target.id==="overlay-config") closeConfigModal(); });
@@ -2536,12 +2748,30 @@ function wireConfiguracoes(){
   });
 }
 
+// Dados do Projeto (16ª rodada): resumo somente-leitura na aba de
+// Configurações — reaproveita o mesmo overlay-projeto de sempre para editar
+// (botão "✎ Editar dados do projeto"), sem duplicar nenhum campo aqui.
+function renderProjetoPane(){
+  if(!PROJETO) return;
+  $("cfg-projeto-sigla").textContent = PROJETO.sigla || "—";
+  $("cfg-projeto-instituicao").textContent = PROJETO.cliente || "—";
+  $("cfg-projeto-nome").textContent = PROJETO.nome || "—";
+  $("cfg-projeto-fiscal").textContent = PROJETO.fiscal_projeto || "—";
+  $("cfg-projeto-gestor").textContent = PROJETO.gestor_projeto || "—";
+  $("cfg-projeto-inicio").textContent = fmtDate(PROJETO.data_inicio);
+  $("cfg-projeto-fim").textContent = fmtDate(PROJETO.data_fim_prevista);
+  $("cfg-projeto-prazo").textContent = PROJETO.prazo_total_meses != null ? `${PROJETO.prazo_total_meses} meses` : "—";
+}
+
 function renderConfigTable(){
   const ehParametros = cfgAbaAtual === "parametros";
-  $("cfg-add-wrap").hidden = ehParametros;
-  $("cfg-table-wrap").hidden = ehParametros;
+  const ehProjeto = cfgAbaAtual === "projeto";
+  $("cfg-add-wrap").hidden = ehParametros || ehProjeto;
+  $("cfg-table-wrap").hidden = ehParametros || ehProjeto;
   $("cfg-parametros-pane").hidden = !ehParametros;
+  $("cfg-projeto-pane").hidden = !ehProjeto;
   if(ehParametros){ renderParametrosPane(); return; }
+  if(ehProjeto){ renderProjetoPane(); return; }
 
   const def = CONFIG_ENTIDADES[cfgAbaAtual];
   $("cfg-add").style.display = def.semCriar ? "none" : "";

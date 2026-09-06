@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, session
 
-from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth
+from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 FRONTEND_DIR = os.environ.get(
@@ -704,6 +704,58 @@ def create_app():
             f"{db.q(data.get('horas_alocadas'))}) RETURNING *"
         )
         return jsonify(db.execute_returning_one(sql)), 201
+
+    # -------------------------------------------------- minhas atividades
+    # Grade semanal do consultor logado: dias úteis da semana x atividades em
+    # que o profissional vinculado a ele (por e-mail, ver
+    # backend/app/minhas_atividades.py) é Responsável Techne ou cliente.
+    @app.get("/api/minhas-atividades")
+    def minhas_atividades_grade():
+        projeto_id = request.args.get("projeto_id")
+        if not projeto_id:
+            return jsonify({"erro": "Informe projeto_id."}), 400
+        usuario = auth.buscar_usuario_publico(session["usuario_id"])
+        semana_str = request.args.get("semana")
+        try:
+            data_ref = date.fromisoformat(semana_str) if semana_str else date.today()
+        except ValueError:
+            return jsonify({"erro": "Data de referência da semana inválida."}), 400
+        return jsonify(minhas_atividades.montar_grade(usuario, projeto_id, data_ref))
+
+    @app.put("/api/minhas-atividades/dia/<id>")
+    def minhas_atividades_ajustar(id):
+        usuario = auth.buscar_usuario_publico(session["usuario_id"])
+        data = request.get_json(force=True)
+        try:
+            row = minhas_atividades.ajustar_dia(id, usuario, data.get("horas_previstas"))
+        except minhas_atividades.MinhasAtividadesError as e:
+            return jsonify({"erro": str(e)}), 400
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.post("/api/minhas-atividades/dia/<id>/confirmar")
+    def minhas_atividades_confirmar(id):
+        usuario = auth.buscar_usuario_publico(session["usuario_id"])
+        data = request.get_json(silent=True) or {}
+        try:
+            row = minhas_atividades.confirmar_dia(id, usuario, data.get("horas"))
+        except minhas_atividades.MinhasAtividadesError as e:
+            return jsonify({"erro": str(e)}), 400
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.post("/api/minhas-atividades/dia/<id>/desconfirmar")
+    def minhas_atividades_desconfirmar(id):
+        usuario = auth.buscar_usuario_publico(session["usuario_id"])
+        try:
+            row = minhas_atividades.desconfirmar_dia(id, usuario)
+        except minhas_atividades.MinhasAtividadesError as e:
+            return jsonify({"erro": str(e)}), 400
+        if not row:
+            abort(404)
+        return jsonify(row)
 
     # ------------------------------------------------------------- requisitos
     @app.get("/api/requisitos")

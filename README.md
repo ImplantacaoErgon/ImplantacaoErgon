@@ -107,6 +107,9 @@ na ordem do número, no SQL Editor do Supabase:
   site (logo e nome da empresa exibidos no topo do sistema — ver seção
   **Parâmetros do site** abaixo). Não precisa de nenhuma configuração
   extra no `.env`.
+- `db/migration_011_horas_diarias_atividade.sql` — cria a tabela de horas
+  diárias usada pela página **Minhas atividades** (ver seção dedicada
+  abaixo). Não precisa de nenhuma configuração extra no `.env`.
 
 Depois de rodar a migração, se estiver usando Docker, recrie o container do
 backend pra ele pegar o código novo:
@@ -312,6 +315,7 @@ papel. Resumo:
 | `historico_status_atividade` | Auditoria automática (trigger) de toda mudança de status de uma atividade |
 | `usuarios` | Login no sistema (e-mail, senha com hash, telefone, empresa, cargo) — independente de `recursos`, ver seção **Login e cadastro de usuários** |
 | `parametros_site` | Logo e nome da empresa exibidos no topo do sistema (tabela "singleton") — ver seção **Parâmetros do site** |
+| `atividade_horas_dia` | Quebra diária das horas previstas/confirmadas de uma atividade — alimenta a página **Minhas atividades** |
 
 Três views prontas para relatório: `vw_atividades_atrasadas`,
 `vw_caminho_critico`, `vw_resumo_frente`.
@@ -342,6 +346,7 @@ ajusta manualmente considerando disponibilidade de equipe, férias etc.
 - **Requisitos do TR** — a mesma gestão do protótipo anterior, agora em Postgres, com filtros (inclusive por tipo Funcional/Não Funcional) e vínculo a atividades. Além do **cadastro manual** e da **importação por planilha CSV** (botão "Importar CSV" — há um botão "Baixar modelo CSV" ao lado com as colunas esperadas), dá para **importar direto do documento do Termo de Referência** (botão "Importar do TR (documento)") — ver seção dedicada abaixo. Reimportar (CSV ou documento) com um código já existente **atualiza** o requisito em vez de duplicar.
 - **Riscos & Marcos** — leitura rápida (edição via API por enquanto — ver backlog abaixo).
 - **Configurações** — cadastros base do projeto, com CRUD completo pela própria interface (antes só dava pra criar via SQL direto): Responsáveis, Etapas, Frentes de Trabalho, Tipos de Atividade Elementar, **Usuários** (edição/desativação — a criação em si é pelo autocadastro, ver **Login e cadastro de usuários**) e **Parâmetros** (logo, nome da empresa e tema da página — ver seção dedicada abaixo). Ver seção dedicada abaixo.
+- **Minhas atividades** — planilha semanal para o consultor logado ajustar/confirmar as horas previstas de cada dia das atividades delegadas a ele (ver seção dedicada abaixo).
 
 ### Formato do CSV de requisitos
 
@@ -847,6 +852,65 @@ dependências e 1 marco criados a partir de 306 linhas da planilha, sem
 erros, com a hierarquia, os responsáveis e os relatos automáticos
 conferidos manualmente na interface depois da carga.
 
+## Minhas atividades
+
+Aba nova (**Minhas atividades** no menu do topo) — uma planilha semanal em
+que cada consultor logado vê as atividades delegadas a ele e confirma ou
+ajusta as horas trabalhadas dia a dia, em vez de só um total lançado de vez
+em quando pelo gestor.
+
+**Como o sistema sabe quais atividades são "suas":** o vínculo entre o seu
+usuário de login e o seu cadastro de Responsável (`recursos`) é feito **por
+e-mail** — se o e-mail com que você loga bate (sem diferenciar
+maiúsculas/minúsculas) com o e-mail cadastrado em algum Responsável, todas
+as atividades em que esse Responsável aparece como **Responsável Techne OU
+Responsável cliente** aparecem aqui. Não existe um campo novo de "usuário x
+responsável" pra cadastrar manualmente — é automático a partir do e-mail. Se
+o seu e-mail de login não bate com nenhum Responsável, a tela avisa e
+orienta a cadastrar (ou corrigir) o seu e-mail em **Configurações >
+Responsáveis**.
+
+**A grade mostra a semana atual** (segunda a sexta), com botões para navegar
+pra semana anterior/seguinte e um atalho "Semana atual" para voltar. Só
+aparecem atividades que têm **data de início/fim previstas e horas
+previstas cadastradas** (sem isso não há como montar a grade) e cujo período
+cruza com a semana em exibição.
+
+**De onde vêm as horas previstas de cada dia:** na primeira vez que a grade
+de uma atividade é aberta, o sistema divide o total de horas previstas da
+atividade (`prazo_horas`) igualmente pelos dias úteis entre o início e o fim
+previstos dela (pulando fins de semana e as exceções cadastradas no
+calendário de dias úteis do projeto). A partir daí, essa quebra diária vira
+a fonte de verdade daquela atividade — **editar o total geral ou as datas da
+atividade depois não regera a grade automaticamente** (é uma limitação
+conhecida: se o planejamento mudar muito depois que a grade já foi gerada,
+pode ser necessário ajustar manualmente dia a dia).
+
+**Em cada dia, você pode:**
+- **Ajustar o número de horas previstas** — edite o campo e saia dele (ou
+  aperte Enter); se aquele dia já estava confirmado, a confirmação é
+  desfeita automaticamente (o número mudou, então a confirmação anterior não
+  vale mais para ele).
+- **Apenas confirmar a execução** — clique em "Confirmar" sem mudar nada: o
+  valor exibido é gravado como horas realizadas daquele dia, o campo fica
+  travado (fundo verde) e o botão vira "✓ Confirmado". Clicar de novo desfaz
+  a confirmação e libera o campo pra editar.
+
+Dias fora do período previsto da atividade aparecem com um traço, sem
+campo — não tem o que lançar ali. Um feriado/exceção cadastrada no
+calendário útil do projeto aparece com uma marcação "feriado" ao lado do
+campo (o número ali é só o que a divisão automática calculou; nada impede
+de zerá-lo manualmente se ninguém trabalhou naquele dia).
+
+**Decisão de design importante:** nenhuma ação nesta tela toca o campo
+`atividades.horas_realizadas` (o total agregado da atividade, já existente
+desde a seção **Horas previstas x realizadas** e editável manualmente no
+modal da atividade) — de propósito, pra não haver risco de uma confirmação
+diária sobrescrever silenciosamente um valor que um gestor lançou por
+outro caminho. As duas fontes (o total manual da atividade e a grade diária
+de "Minhas atividades") convivem de forma independente por enquanto — ver
+backlog abaixo para uma possível integração futura.
+
 ## Backlog sugerido para próximas sessões
 
 - Formulários de criar/editar Riscos e Marcos na interface (hoje só leitura; a API já suporta POST/PUT).
@@ -862,6 +926,15 @@ conferidos manualmente na interface depois da carga.
 - Tela dedicada para lançar ciclos de migração semanais (`ciclos_migracao`) e ver a evolução da taxa de rejeição.
 - Módulo de Rubricas da Folha de Pagamento (o levantamento com ~30 campos por rubrica, discutido antes de partirmos para o banco Postgres).
 - Exportação de relatórios operacionais (ex: lista de atividades filtrada, resumo por frente) em PDF/Excel a partir das views prontas — hoje só o Relatório Executivo (IA) tem exportação em PDF (ver seção dedicada acima); os demais relatórios do Dashboard ainda são só leitura na tela.
+- ✅ **"Minhas atividades" — grade semanal de horas por consultor** — ver
+  seção dedicada acima. Ficou de fora de propósito: integrar a soma das
+  horas confirmadas dia a dia com o total agregado
+  `atividades.horas_realizadas` (hoje as duas coisas são independentes, ver
+  decisão de design na seção acima); regenerar a grade diária quando o total
+  geral ou as datas da atividade mudam depois que ela já foi gerada uma vez
+  (hoje fica desatualizada em silêncio, sem aviso); mostrar o mês inteiro em
+  vez de só a semana atual; e uma tela para o gestor ver a grade de **todos**
+  os consultores de uma vez (hoje cada um só vê a própria).
 
 **Sugestões de gerenciamento de projeto — o que já foi implementado e o que
 ficou de fora** (as duas primeiras foram pedidas explicitamente numa rodada
