@@ -34,11 +34,19 @@ previsto atual se nada for informado). Editar o previsto de um dia já
 confirmado desfaz a confirmação (força reconfirmar), pra nunca deixar uma
 hora "confirmada" que não corresponde mais ao número exibido.
 
-Nenhuma ação aqui toca `atividades.horas_realizadas` (o total agregado, já
-existente desde a 4ª rodada e editável manualmente no modal da atividade) —
-de propósito, para não haver risco de uma ação nesta tela sobrescrever
-silenciosamente um valor lançado por outro caminho. Ver seção "Minhas
-atividades" do README para o detalhamento completo e essa decisão.
+Até a 16ª rodada, nenhuma ação aqui tocava `atividades.horas_realizadas` (o
+total agregado, editável manualmente no modal da atividade desde a 4ª
+rodada) — de propósito, para não sobrescrever silenciosamente um valor
+lançado por outro caminho. A partir da 16ª rodada (parte 3), a pedido
+explícito do usuário, isso mudou: uma vez que uma atividade tem quebra
+diária (ou seja, já apareceu em "Minhas atividades" de alguém),
+`atividades.horas_realizadas` passa a ser a SOMA dos dias já confirmados
+aqui, recalculada a cada ajuste/confirmação/desconfirmação — ver
+`_sincronizar_horas_realizadas()`. O campo manual do modal de atividade
+(`backend/app/main.py:update_atividade`) passa a ser ignorado nesse caso
+(e o front-end trava o campo), evitando os dois números divergirem.
+Atividades que nunca tiveram quebra diária gerada continuam com o campo
+100% manual, como sempre foi.
 """
 import uuid
 from datetime import date, timedelta
@@ -102,6 +110,26 @@ def _dias_uteis_periodo(data_ini, data_fim, non_working):
     return dias or [data_ini]
 
 
+def _sincronizar_horas_realizadas(atividade_id):
+    """16ª rodada (parte 3): grava em `atividades.horas_realizadas` a soma
+    das `horas_realizadas` dos dias já CONFIRMADOS desta atividade em
+    `atividade_horas_dia`. Chamada (a) quando a quebra diária é gerada pela
+    primeira vez (o total nasce em 0 — nada foi confirmado ainda) e (b) a
+    cada ajustar/confirmar/desconfirmar um dia. A partir do momento em que
+    isso roda pela primeira vez para uma atividade, o campo manual do modal
+    de atividade deixa de valer (ver `tem_apontamento_diario` em
+    `backend/app/main.py:ATIVIDADE_SELECT` e o bloqueio em
+    `update_atividade`) — este total, não mais uma digitação manual, é a
+    fonte de verdade dali em diante."""
+    linha = db.fetch_one(f"""
+        SELECT COALESCE(SUM(horas_realizadas), 0) AS total
+        FROM atividade_horas_dia
+        WHERE atividade_id = {db.q(atividade_id)} AND confirmado = TRUE
+    """)
+    total = linha["total"] if linha else 0
+    db.execute(f"UPDATE atividades SET horas_realizadas = {db.q(total)} WHERE id = {db.q(atividade_id)}")
+
+
 def garantir_dias(atividade, non_working):
     """Gera a quebra diária (atividade_horas_dia) da atividade inteira, uma
     única vez. Idempotente: se já existir qualquer linha para esta
@@ -132,6 +160,10 @@ def garantir_dias(atividade, non_working):
         )
     sql = "INSERT INTO atividade_horas_dia (id, atividade_id, data, horas_previstas) VALUES " + ", ".join(valores)
     db.execute(sql)
+    # A partir de agora esta atividade tem quebra diária — sincroniza
+    # atividades.horas_realizadas (nasce em 0, já que nada foi confirmado
+    # ainda) e, a partir daqui, o campo manual do modal fica travado.
+    _sincronizar_horas_realizadas(atividade["id"])
 
 
 def montar_grade(usuario, data_ref: date):
@@ -260,12 +292,14 @@ def ajustar_dia(horas_dia_id, usuario, horas_previstas):
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
     valor = _validar_horas(horas_previstas)
-    return db.execute_returning_one(f"""
+    resultado = db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET horas_previstas = {db.q(valor)}, confirmado = FALSE, confirmado_em = NULL, confirmado_por = NULL
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
+    _sincronizar_horas_realizadas(linha["atividade_id"])
+    return resultado
 
 
 def confirmar_dia(horas_dia_id, usuario, horas=None):
@@ -277,13 +311,15 @@ def confirmar_dia(horas_dia_id, usuario, horas=None):
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
     valor = _validar_horas(horas) if horas is not None else _validar_horas(linha["horas_previstas"])
-    return db.execute_returning_one(f"""
+    resultado = db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET horas_realizadas = {db.q(valor)}, confirmado = TRUE,
             confirmado_em = now(), confirmado_por = {db.q(usuario["id"])}
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
+    _sincronizar_horas_realizadas(linha["atividade_id"])
+    return resultado
 
 
 def desconfirmar_dia(horas_dia_id, usuario):
@@ -292,9 +328,11 @@ def desconfirmar_dia(horas_dia_id, usuario):
     linha = _linha_autorizada(horas_dia_id, recurso_ids)
     if not linha:
         raise MinhasAtividadesError("Dia não encontrado ou a atividade não está delegada a você.")
-    return db.execute_returning_one(f"""
+    resultado = db.execute_returning_one(f"""
         UPDATE atividade_horas_dia
         SET confirmado = FALSE, confirmado_em = NULL, confirmado_por = NULL
         WHERE id = {db.q(horas_dia_id)}
         RETURNING *
     """)
+    _sincronizar_horas_realizadas(linha["atividade_id"])
+    return resultado

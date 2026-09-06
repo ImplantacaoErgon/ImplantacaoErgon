@@ -117,7 +117,12 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        rt.nome AS responsavel_techne_nome, rc.nome AS responsavel_cliente_nome,
        rq.codigo AS requisito_tr_codigo, rq.titulo AS requisito_tr_titulo,
        (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
-        AND a.dtfim_prev < CURRENT_DATE) AS atrasada
+        AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
+       -- 16ª rodada: uma vez que existe quebra diária (a atividade apareceu em
+       -- "Minhas atividades"), horas_realizadas passa a ser calculado a partir
+       -- dela (ver minhas_atividades._sincronizar_horas_realizadas) — este flag
+       -- diz ao front-end para travar o campo manual no modal da atividade.
+       EXISTS(SELECT 1 FROM atividade_horas_dia hd WHERE hd.atividade_id = a.id) AS tem_apontamento_diario
 FROM atividades a
 JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
@@ -594,6 +599,18 @@ def create_app():
     @app.put("/api/atividades/<id>")
     def update_atividade(id):
         data = request.get_json(force=True)
+        # 16ª rodada: uma vez que a atividade tem quebra diária de horas (ver
+        # atividade_horas_dia/minhas_atividades.py), horas_realizadas passa a
+        # ser calculado a partir dos dias confirmados, não editado à mão aqui
+        # — ignora silenciosamente qualquer valor mandado neste campo, mesmo
+        # que alguém contorne o campo desabilitado da interface (o front-end
+        # já evita mandar, mas a garantia de verdade é aqui no servidor).
+        if "horas_realizadas" in data:
+            tem_apontamento = db.fetch_one(
+                f"SELECT 1 AS x FROM atividade_horas_dia WHERE atividade_id = {db.q(id)} LIMIT 1"
+            )
+            if tem_apontamento:
+                data = {k: v for k, v in data.items() if k != "horas_realizadas"}
         novo_status = data.get("status")
         if novo_status in STATUS_EXIGE_RELATO:
             tem_relato = db.fetch_one(

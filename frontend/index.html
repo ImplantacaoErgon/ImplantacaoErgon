@@ -645,7 +645,11 @@
         </div>
 
         <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço"></div>
-        <div class="field"><label>Horas realizadas</label><input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas"></div>
+        <div class="field">
+          <label>Horas realizadas</label>
+          <input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas">
+          <div class="muted" id="at-horas-real-hint" hidden style="font-size:11.5px;margin-top:3px;">Calculado automaticamente pela soma dos dias confirmados em "Minhas atividades" — não é mais editável aqui.</div>
+        </div>
         <div class="field"><label>Início previsto</label><input id="at-dtini-prev" type="date"></div>
         <div class="field"><label>Fim previsto</label><input id="at-dtfim-prev" type="date"></div>
         <div class="field"><label>Início real</label><input id="at-dtini-real" type="date"></div>
@@ -1416,7 +1420,7 @@ function renderMinhasAtividades(){
       return celulaHorasDia(d);
     }).join("");
     const subtitulo = [a.etapa_nome, a.frente_nome].filter(Boolean).join(" / ");
-    return `<tr>
+    return `<tr data-atividade-id="${a.id}">
       <td class="ma-projeto"><span class="badge">${esc(a.projeto_sigla || a.projeto_nome || "—")}</span></td>
       <td class="ma-atividade">
         <div>${esc(a.nome)}</div>
@@ -1433,6 +1437,23 @@ function renderMinhasAtividades(){
     </tr>`;
 }
 
+// 16ª rodada (parte 3): depois de ajustar/confirmar/desconfirmar um dia, o
+// backend pode ter recalculado atividades.horas_realizadas (ver
+// backend/app/minhas_atividades.py: _sincronizar_horas_realizadas). Se essa
+// atividade pertence ao projeto atualmente selecionado no cabeçalho, ela já
+// está em ATIVIDADES (usado pelo Cronograma/Dashboard) — atualiza só ela ali
+// e redesenha, pra não precisar de F5 pra ver o número novo lá. Se for de
+// outro projeto (a grade de "Minhas atividades" mostra todos, ver 16ª
+// rodada parte 2), não tem o que atualizar aqui — nada acontece.
+async function atualizarAtividadeEmCache(atividadeId){
+  const idx = ATIVIDADES.findIndex(a => a.id === atividadeId);
+  if(idx === -1) return;
+  try{
+    ATIVIDADES[idx] = await api(`/atividades/${atividadeId}`);
+    renderCronograma(); renderDashboard();
+  }catch(e){}
+}
+
 function wireMinhasAtividades(){
   $("ma-prev").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()-7); carregarMinhasAtividades(); });
   $("ma-next").addEventListener("click", ()=>{ MA_DATA_REF = new Date(MA_DATA_REF); MA_DATA_REF.setDate(MA_DATA_REF.getDate()+7); carregarMinhasAtividades(); });
@@ -1443,11 +1464,13 @@ function wireMinhasAtividades(){
     const input = e.target.closest("input[type=number]"); if(!input) return;
     const cell = input.closest(".ma-cell"); if(!cell) return;
     const id = cell.dataset.horasDiaId;
+    const atividadeId = e.target.closest("tr")?.dataset.atividadeId;
     const valor = input.value === "" ? 0 : Number(input.value);
     try{
       await api(`/minhas-atividades/dia/${id}`, {method:"PUT", body: JSON.stringify({horas_previstas: valor})});
       toast("Horas previstas atualizadas.");
       await carregarMinhasAtividades();
+      if(atividadeId) await atualizarAtividadeEmCache(atividadeId);
     }catch(err){}
   });
 
@@ -1456,6 +1479,7 @@ function wireMinhasAtividades(){
     const btn = e.target.closest("button.ma-confirmar"); if(!btn) return;
     const cell = btn.closest(".ma-cell"); if(!cell) return;
     const id = cell.dataset.horasDiaId;
+    const atividadeId = e.target.closest("tr")?.dataset.atividadeId;
     const confirmado = cell.classList.contains("confirmado");
     try{
       if(confirmado){
@@ -1467,6 +1491,7 @@ function wireMinhasAtividades(){
         toast("Execução confirmada.");
       }
       await carregarMinhasAtividades();
+      if(atividadeId) await atualizarAtividadeEmCache(atividadeId);
     }catch(err){}
   });
 }
@@ -1944,6 +1969,13 @@ function openAtividadeModal(atividade){
   $("at-master").checked = !!atividade?.eh_atividade_master;
   $("at-prazo").value = atividade?.prazo_horas ?? "";
   $("at-horas-real").value = atividade?.horas_realizadas ?? "";
+  // 16ª rodada: uma vez que a atividade tem apontamento diário (apareceu em
+  // "Minhas atividades"), o realizado passa a ser calculado a partir dos
+  // dias confirmados lá — o campo aqui vira só leitura, pra não divergir do
+  // que o consultor está apontando (ver backend/app/minhas_atividades.py).
+  const temApontamento = !!atividade?.tem_apontamento_diario;
+  $("at-horas-real").disabled = temApontamento;
+  $("at-horas-real-hint").hidden = !temApontamento;
   $("at-dtini-prev").value = atividade?.dtini_prev || "";
   $("at-dtfim-prev").value = atividade?.dtfim_prev || "";
   $("at-dtini-real").value = atividade?.dtini_real || "";
@@ -1973,7 +2005,11 @@ async function saveAtividade(){
     status: $("at-status").value, prioridade: $("at-prioridade").value,
     percentual_concluido: Number($("at-percentual").value || 0), prazo_horas: $("at-prazo").value ? Number($("at-prazo").value) : null,
     eh_atividade_master: $("at-master").checked,
-    horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null,
+    // Enquanto o campo está travado (apontamento diário assumiu o cálculo),
+    // não manda horas_realizadas no payload — o backend ignoraria mesmo (ver
+    // update_atividade), mas evita mandar um valor "congelado" do campo
+    // desabilitado sem necessidade.
+    ...($("at-horas-real").disabled ? {} : {horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null}),
     dtini_prev: $("at-dtini-prev").value || null, dtfim_prev: $("at-dtfim-prev").value || null,
     dtini_real: $("at-dtini-real").value || null, dtfim_real: $("at-dtfim-real").value || null,
     observacoes: $("at-observacoes").value.trim(),
