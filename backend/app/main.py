@@ -1389,6 +1389,55 @@ def create_app():
             sql += f" WHERE projeto_id = {db.q(pid)}"
         return jsonify(db.fetch_all(sql))
 
+    # -------------------------------------------------------------- documentação
+    # Configurações > Documentação: dois documentos vivos do próprio sistema
+    # (Documento Executivo e Documento Técnico), guardados no banco (tabela
+    # `documentacao`, ver db/migration_014_documentacao.sql) em vez de fixos
+    # no frontend, para poderem ser atualizados sem precisar de um novo
+    # deploy. O PDF é gerado no navegador (impressão), sem rota de backend
+    # dedicada. Sem hierarquia de perfil no sistema (ver seção 4 do Documento
+    # Técnico), o PUT abaixo fica acessível a qualquer usuário autenticado,
+    # igual a todo o resto das rotas de Configurações.
+    DOCUMENTACAO_TIPOS = {"executivo", "tecnico"}
+
+    @app.get("/api/documentacao")
+    def listar_documentacao():
+        """Lista só os metadados (sem o conteúdo, que pode ser grande) —
+        usada pela tela de listagem em Configurações > Documentação."""
+        return jsonify(db.fetch_all(
+            "SELECT tipo, titulo, versao, atualizado_em FROM documentacao ORDER BY tipo"
+        ))
+
+    @app.get("/api/documentacao/<tipo>")
+    def obter_documentacao(tipo):
+        if tipo not in DOCUMENTACAO_TIPOS:
+            abort(404)
+        row = db.fetch_one(f"SELECT * FROM documentacao WHERE tipo = {db.q(tipo)}")
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.put("/api/documentacao/<tipo>")
+    def atualizar_documentacao(tipo):
+        if tipo not in DOCUMENTACAO_TIPOS:
+            abort(404)
+        data = request.get_json(force=True)
+        sets = []
+        if "titulo" in data:
+            sets.append(f"titulo = {db.q(data['titulo'])}")
+        if "versao" in data:
+            sets.append(f"versao = {db.q(data['versao'])}")
+        if "conteudo_md" in data:
+            sets.append(f"conteudo_md = {db.q(data['conteudo_md'])}")
+        if not sets:
+            return jsonify({"erro": "Nada para atualizar."}), 400
+        sets.append("atualizado_em = now()")
+        sql = f"UPDATE documentacao SET {', '.join(sets)} WHERE tipo = {db.q(tipo)} RETURNING *"
+        row = db.execute_returning_one(sql)
+        if not row:
+            abort(404)
+        return jsonify(row)
+
     # -------------------------------------------------------------- error handling
     @app.errorhandler(db.DbError)
     def handle_db_error(e):
