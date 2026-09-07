@@ -378,6 +378,17 @@
       </div>
     </div>
     <div class="kpis" id="dash-kpis"></div>
+    <div class="card" id="dash-master-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3>★ Atividades master — previsão de conclusão</h3>
+        <span class="muted" style="font-size:11.5px;" title="&quot;Fim previsto (plano)&quot; é a data do cronograma (nunca muda sozinha). &quot;Fim projetado (andamento)&quot; reprojeta a partir do que já aconteceu de verdade — conclusões, % executado, bloqueios, propagando atraso pelas dependências — e pode ficar bem diferente da primeira quando o projeto está atrasado. Mesmo cálculo usado no Relatório Executivo (IA), sem custo de IA.">ⓘ como funciona</span>
+      </div>
+      <div class="muted" id="dash-master-vazio" style="margin-top:6px;">Nenhuma atividade marcada como ★ atividade master ainda. Marque uma atividade como master no Cronograma (aba de edição da atividade) para acompanhar aqui a previsão de conclusão.</div>
+      <div class="table-wrap" id="dash-master-tabela-wrap" hidden style="margin-top:6px;"><table>
+        <thead><tr><th>Atividade</th><th>Frente</th><th>Status</th><th>% Concl.</th><th>Fim previsto (plano)</th><th>Fim projetado (andamento)</th><th>Situação</th></tr></thead>
+        <tbody id="dash-master-tbody"></tbody>
+      </table></div>
+    </div>
     <div class="grid-2">
       <div class="card">
         <h3>Progresso por frente de trabalho</h3>
@@ -1839,6 +1850,52 @@ function renderDashboard(){
 
   renderAlertasPrioridade();
   renderHorasPorRecurso();
+  renderAtividadesMaster();
+}
+
+const DASH_MASTER_VAZIO_PADRAO = "Nenhuma atividade marcada como ★ atividade master ainda. Marque uma atividade como master no Cronograma (aba de edição da atividade) para acompanhar aqui a previsão de conclusão.";
+const CONFIANCA_PREVISAO_TITULO = {
+  "alta": "Alta confiança — a atividade já foi concluída.",
+  "média": "Confiança média — extrapolação do ritmo observado até agora (ou da duração planejada restante, se a atividade ainda não começou).",
+  "baixa": "Confiança baixa — atividade bloqueada; esta data é um piso, não uma previsão confiável (não sabemos quando o bloqueio será resolvido).",
+};
+
+// Previsão de conclusão das atividades ★ master, calculada em Python (mesmo
+// motor determinístico usado pelo Relatório Executivo — ver
+// relatorio_executivo._projetar_datas() — mas sem chamar IA nenhuma, então
+// recarrega de graça toda vez que o Dashboard abre). "Fim previsto (plano)"
+// nunca muda sozinho; "Fim projetado (andamento)" reage ao que já aconteceu
+// de verdade (conclusões, % executado, bloqueios propagados pelas dependências).
+function renderAtividadesMaster(){
+  api(`/relatorios/atividades-master?projeto_id=${PROJETO.id}`).then(res=>{
+    const lista = res.atividades_master || [];
+    $("dash-master-vazio").textContent = DASH_MASTER_VAZIO_PADRAO;
+    $("dash-master-vazio").hidden = lista.length > 0;
+    $("dash-master-tabela-wrap").hidden = lista.length === 0;
+    if(!lista.length) return;
+    $("dash-master-tbody").innerHTML = lista.map(a=>{
+      const atraso = a.atraso_projetado_dias_uteis;
+      let situacao;
+      if(atraso == null || !a.fim_projetado) situacao = `<span class="muted">—</span>`;
+      else if(atraso > 0) situacao = pill(`${atraso}d de atraso`, "danger");
+      else if(atraso < 0) situacao = pill(`${Math.abs(atraso)}d adiantada`, "ok");
+      else situacao = pill("No prazo", "ok");
+      const confiancaTitulo = CONFIANCA_PREVISAO_TITULO[a.confianca_da_previsao] || "";
+      return `<tr>
+        <td>${esc(a.nome)}${a.codigo_wbs?`<div class="muted" style="font-size:11px;">${esc(a.codigo_wbs)}</div>`:""}</td>
+        <td>${esc(a.frente||"—")}</td>
+        <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}</td>
+        <td class="mono">${a.percentual_concluido??0}%</td>
+        <td class="mono">${fmtDate(a.fim_previsto_no_plano)}</td>
+        <td class="mono" title="${esc(confiancaTitulo)}">${fmtDate(a.fim_projetado)}${a.confianca_da_previsao?` <span class="muted" style="font-size:10.5px;">(${esc(a.confianca_da_previsao)})</span>`:""}</td>
+        <td>${situacao}</td>
+      </tr>`;
+    }).join("");
+  }).catch(()=>{
+    $("dash-master-vazio").textContent = "Não foi possível carregar a previsão das atividades master.";
+    $("dash-master-vazio").hidden = false;
+    $("dash-master-tabela-wrap").hidden = true;
+  });
 }
 
 // Atividades Urgente/Alta, ainda não concluídas/canceladas, sem nenhum recurso ou sem fim previsto —

@@ -1268,6 +1268,28 @@ def create_app():
         sql += " ORDER BY frente_nome"
         return jsonify(db.fetch_all(sql))
 
+    @app.get("/api/relatorios/atividades-master")
+    def relatorio_atividades_master():
+        """Previsão de conclusão das atividades marcadas como ★ master (ver
+        atividades.eh_atividade_master), pro card do Dashboard — reaproveita
+        relatorio_executivo.coletar_dados_projeto()/_projetar_datas() (a mesma
+        reprojeção "conforme o andamento" usada no Relatório Executivo), sem
+        chamar IA nenhuma: é só a parte numérica/determinística daquele
+        cálculo, então pode ser recarregada toda vez que o Dashboard abre, de
+        graça. "fim_previsto_no_plano" é a data do cronograma (dtfim_prev,
+        nunca muda sozinha); "fim_projetado" é a reprojeção a partir do que
+        já aconteceu de verdade (conclusões, % executado, bloqueios,
+        propagando atraso pelas dependências) — pode ser bem diferente da
+        primeira quando o projeto está atrasado."""
+        pid = request.args.get("projeto_id")
+        if not pid:
+            return jsonify({"erro": "projeto_id é obrigatório"}), 400
+        try:
+            dados = relatorio_executivo.coletar_dados_projeto(pid)
+        except relatorio_executivo.RelatorioExecutivoError as e:
+            return jsonify({"erro": str(e)}), 404
+        return jsonify({"gerado_em": dados["gerado_em"], "atividades_master": dados["atividades_master"]})
+
     # ------------------------------------------------- relatório executivo (IA)
     @app.get("/api/relatorios/executivo")
     def relatorio_executivo_listar():
