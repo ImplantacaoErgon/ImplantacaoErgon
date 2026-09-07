@@ -1,3 +1,4 @@
+import base64
 import csv
 import io
 import json
@@ -58,6 +59,16 @@ PROJETO_FIELDS = [
 PARAMETROS_FIELDS = ["nome_empresa"]
 LOGO_EXTENSOES_PERMITIDAS = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"}
 LOGO_TAMANHO_MAXIMO_BYTES = 3 * 1024 * 1024  # 3 MB
+LOGO_MIME_POR_EXTENSAO = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".svg": "image/svg+xml", ".webp": "image/webp", ".gif": "image/gif",
+}
+# Colunas "leves" de parametros_site — tudo, EXCETO logo_dados (o base64 do
+# logo, que pode ter alguns MB). Usadas em toda leitura/escrita que não seja
+# especificamente para servir a imagem do logo (GET .../logo), para não
+# duplicar esses MB em todo carregamento de página (Configurações e o
+# carregarParametros() disparado no boot do front-end, ver frontend/index.html).
+PARAMETROS_COLUNAS_LEVES = "id, nome_empresa, logo_arquivo, logo_mime, atualizado_em"
 CLASSIFICACAO_TR_VALIDAS = {
     "Essencial/Imediato", "Obrigatório", "Desejável",
     "Customizado Curto", "Customizado Médio", "Customizado Longo",
@@ -363,9 +374,11 @@ def create_app():
         linha e cria uma linha padrão automaticamente se ainda não existir
         nenhuma — assim o front-end nunca precisa lidar com "ainda não
         tem parâmetros cadastrados"."""
-        row = db.fetch_one("SELECT * FROM parametros_site ORDER BY atualizado_em LIMIT 1")
+        row = db.fetch_one(f"SELECT {PARAMETROS_COLUNAS_LEVES} FROM parametros_site ORDER BY atualizado_em LIMIT 1")
         if not row:
-            row = db.execute_returning_one("INSERT INTO parametros_site DEFAULT VALUES RETURNING *")
+            row = db.execute_returning_one(
+                f"INSERT INTO parametros_site DEFAULT VALUES RETURNING {PARAMETROS_COLUNAS_LEVES}"
+            )
         return jsonify(row)
 
     @app.put("/api/parametros/<id>")
@@ -373,7 +386,10 @@ def create_app():
         data = request.get_json(force=True)
         sets = [f"{f} = {db.q(data[f])}" for f in PARAMETROS_FIELDS if f in data]
         sets.append("atualizado_em = now()")
-        sql = f"UPDATE parametros_site SET {', '.join(sets)} WHERE id = {db.q(id)} RETURNING *"
+        sql = (
+            f"UPDATE parametros_site SET {', '.join(sets)} WHERE id = {db.q(id)} "
+            f"RETURNING {PARAMETROS_COLUNAS_LEVES}"
+        )
         row = db.execute_returning_one(sql)
         if not row:
             abort(404)
@@ -381,8 +397,14 @@ def create_app():
 
     @app.post("/api/parametros/<id>/logo")
     def upload_logo_parametros(id):
-        row = db.fetch_one(f"SELECT * FROM parametros_site WHERE id = {db.q(id)}")
-        if not row:
+        """O conteúdo do logo é gravado em base64 direto no banco (coluna
+        logo_dados), não em disco. Disco local não é confiável nos deploys
+        deste sistema (ex: Render sem disco persistente) — é apagado a cada
+        redeploy e reiniciado, então um logo salvo lá "some" pouco depois de
+        enviado, mesmo continuando a existir a referência no banco. Ver
+        comentário da coluna em db/schema.sql (seção 17)."""
+        existe = db.fetch_one(f"SELECT id FROM parametros_site WHERE id = {db.q(id)}")
+        if not existe:
             abort(404)
         file = request.files.get("file")
         if not file or not file.filename:
@@ -390,39 +412,32 @@ def create_app():
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in LOGO_EXTENSOES_PERMITIDAS:
             return jsonify({"erro": "Formato não suportado. Use PNG, JPG, SVG, WEBP ou GIF."}), 400
-        file.seek(0, os.SEEK_END)
-        tamanho = file.tell()
-        file.seek(0)
-        if tamanho > LOGO_TAMANHO_MAXIMO_BYTES:
+        conteudo = file.read()
+        if len(conteudo) > LOGO_TAMANHO_MAXIMO_BYTES:
             return jsonify({"erro": "Arquivo muito grande (máximo 3 MB)."}), 400
         stored_name = f"logo_{uuid.uuid4()}{ext}"
-        file.save(os.path.join(UPLOAD_DIR, stored_name))
-        arquivo_antigo = row.get("logo_arquivo")
+        mime = LOGO_MIME_POR_EXTENSAO.get(ext, file.mimetype or "application/octet-stream")
+        dados_b64 = base64.b64encode(conteudo).decode("ascii")
         sql = (
-            f"UPDATE parametros_site SET logo_arquivo = {db.q(stored_name)}, atualizado_em = now() "
-            f"WHERE id = {db.q(id)} RETURNING *"
+            f"UPDATE parametros_site SET logo_arquivo = {db.q(stored_name)}, "
+            f"logo_dados = {db.q(dados_b64)}, logo_mime = {db.q(mime)}, atualizado_em = now() "
+            f"WHERE id = {db.q(id)} RETURNING {PARAMETROS_COLUNAS_LEVES}"
         )
         novo = db.execute_returning_one(sql)
-        if arquivo_antigo:
-            try:
-                os.remove(os.path.join(UPLOAD_DIR, arquivo_antigo))
-            except OSError:
-                pass
         return jsonify(novo)
 
     @app.get("/api/parametros/<id>/logo")
     def get_logo_parametros(id):
-        """O nome do arquivo nunca vem da URL (só o id dos parâmetros) —
-        assim não há como um id/nome manipulado ler outro arquivo do disco
-        (path traversal): o caminho real sempre vem do que está gravado no
-        banco em logo_arquivo."""
-        row = db.fetch_one(f"SELECT logo_arquivo FROM parametros_site WHERE id = {db.q(id)}")
-        if not row or not row.get("logo_arquivo"):
+        """Serve o logo a partir do base64 gravado no banco (logo_dados) —
+        ver comentário em upload_logo_parametros sobre por que não fica em
+        disco. O nome do arquivo nunca vem da URL (só o id dos parâmetros
+        e, opcionalmente, um "?f=" cosmético só para cache-busting no
+        front-end — o valor de "f" nunca é lido aqui)."""
+        row = db.fetch_one(f"SELECT logo_dados, logo_mime FROM parametros_site WHERE id = {db.q(id)}")
+        if not row or not row.get("logo_dados"):
             abort(404)
-        caminho = os.path.join(UPLOAD_DIR, row["logo_arquivo"])
-        if not os.path.isfile(caminho):
-            abort(404)
-        return send_file(caminho)
+        conteudo = base64.b64decode(row["logo_dados"])
+        return send_file(io.BytesIO(conteudo), mimetype=row.get("logo_mime") or "application/octet-stream")
 
     # -------------------------------------------------------------- etapas
     @app.get("/api/etapas")

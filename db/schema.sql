@@ -523,6 +523,8 @@ CREATE TABLE parametros_site (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   nome_empresa  text NOT NULL DEFAULT '',
   logo_arquivo  text,
+  logo_dados    text,
+  logo_mime     text,
   atualizado_em timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE parametros_site IS
@@ -533,8 +535,20 @@ COMMENT ON TABLE parametros_site IS
   'único de acesso das demais telas de Configurações — ver tabela '
   'usuarios).';
 COMMENT ON COLUMN parametros_site.logo_arquivo IS
-  'Nome do arquivo de imagem armazenado em backend/uploads/ (mesmo '
-  'diretório usado pelos anexos). NULL enquanto nenhum logo foi enviado.';
+  'Nome do arquivo original enviado (só para saber a extensão e para o '
+  '"?f=" de cache-busting da URL do logo no front-end) — o CONTEÚDO da '
+  'imagem não fica em disco, ver comentário em logo_dados. NULL enquanto '
+  'nenhum logo foi enviado.';
+COMMENT ON COLUMN parametros_site.logo_dados IS
+  'Conteúdo binário da imagem do logo, em base64, gravado direto no banco '
+  '(migração 015 — antes ficava salvo em backend/uploads/, um diretório em '
+  'disco local do container; em deploys como o Render, sem disco '
+  'persistente, esse diretório é apagado a cada redeploy/reinício, então o '
+  'logo "sumia" pouco depois de enviado). Servido por '
+  'GET /api/parametros/<id>/logo. NULL enquanto nenhum logo foi enviado.';
+COMMENT ON COLUMN parametros_site.logo_mime IS
+  'Content-Type da imagem do logo (ex: image/png), usado ao servir '
+  'GET /api/parametros/<id>/logo. NULL enquanto nenhum logo foi enviado.';
 
 -- ============================================================================
 -- 18. HORAS DIÁRIAS DA ATIVIDADE  ("Minhas atividades" — grade semanal do consultor)
