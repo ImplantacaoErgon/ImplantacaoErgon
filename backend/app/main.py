@@ -100,7 +100,7 @@ REQUISITO_UPSERT_COLUMNS = [
     "classificacao", "atendimento", "status", "prioridade", "cobranca",
     "data_levantamento", "observacoes",
 ]
-RECURSO_FIELDS = ["nome", "tipo_vinculo", "empresa", "cargo", "email", "telefone", "ativo"]
+RECURSO_FIELDS = ["nome", "tipo_vinculo", "empresa", "cargo", "email", "telefone", "controla_horas", "ativo"]
 ETAPA_FIELDS = ["projeto_id", "numero", "nome", "descricao", "data_inicio_prev", "data_fim_prev"]
 FRENTE_FIELDS = ["projeto_id", "nome", "descricao", "cor_hex", "ordem", "ativo"]
 TIPO_ATIVIDADE_FIELDS = ["nome", "descricao", "ordem", "ativo"]
@@ -117,7 +117,7 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        rq.codigo AS requisito_tr_codigo, rq.titulo AS requisito_tr_titulo,
        (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
         AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
-       -- Lista completa de responsáveis/participantes (N, não mais 2 campos fixos —
+       -- Lista completa de recursos/participantes (N, não mais 2 campos fixos —
        -- ver tabela atividade_recurso e migração 012), já pronta pro front-end sem
        -- round-trip extra: cada item {id, nome, tipo_vinculo}.
        COALESCE((
@@ -512,7 +512,7 @@ def create_app():
     def create_recurso():
         data = request.get_json(force=True)
         if not data.get("nome"):
-            return jsonify({"erro": "Nome do responsável é obrigatório."}), 400
+            return jsonify({"erro": "Nome do recurso é obrigatório."}), 400
         if data.get("tipo_vinculo") and data["tipo_vinculo"] not in TIPO_VINCULO_VALIDOS:
             return jsonify({"erro": "Vínculo inválido — use Techne, Cliente ou Terceirizado."}), 400
         return jsonify(insert_row("recursos", data, RECURSO_FIELDS)), 201
@@ -653,7 +653,7 @@ def create_app():
             ]
             if faltando:
                 return jsonify({
-                    "erro": "Pendência exige responsável, prazo possível e data limite."
+                    "erro": "Pendência exige recurso responsável, prazo possível e data limite."
                 }), 400
         data = dict(data)
         data["atividade_id"] = id
@@ -1073,7 +1073,7 @@ def create_app():
         novo). Reimportar casa cada linha da planilha com a atividade/marco
         já existente (por Id de origem ou, na falta dele, pelo código WBS) e
         atualiza em vez de duplicar; campos preenchidos manualmente
-        (responsável, tipo, status Bloqueada/Cancelada, observações, item do
+        (recurso, tipo, status Bloqueada/Cancelada, observações, item do
         TR) não são sobrescritos."""
         data = request.get_json(force=True)
         token = data.get("token")
@@ -1397,7 +1397,7 @@ def create_app():
         if "violates foreign key constraint" in baixo:
             return jsonify({
                 "erro": "Não é possível excluir: existem outros registros vinculados a este item "
-                        "(ex: atividades usando esta etapa/frente/tipo/responsável). "
+                        "(ex: atividades usando esta etapa/frente/tipo/recurso). "
                         "Marque como inativo em vez de excluir, se possível.",
             }), 409
         if "duplicate key value violates unique constraint" in baixo:

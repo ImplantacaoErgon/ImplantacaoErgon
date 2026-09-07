@@ -338,7 +338,7 @@
       <button class="btn secondary" id="btn-refresh-dashboard">↻ Atualizar</button>
       <span class="muted" id="dash-refresh-status"></span>
       <div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn secondary" id="btn-relatorio-atividades" title="Relatório de horas apontadas em 'Minhas atividades', filtrável por consultor e período, em PDF ou planilha">🕒 Relatório de Minhas Atividades</button>
+        <button class="btn secondary" id="btn-relatorio-atividades" title="Relatório de horas apontadas em 'Minhas atividades', filtrável por recurso e período, em PDF ou planilha">🕒 Relatório de Horas dos Recursos</button>
         <button class="btn" id="btn-relatorio-executivo" title="Gera um diagnóstico do projeto usando IA a partir dos dados atuais do cronograma">🧠 Gerar Relatório Executivo (IA)</button>
       </div>
     </div>
@@ -356,23 +356,23 @@
     <div class="card">
       <h3>Atividades atrasadas</h3>
       <div class="table-wrap"><table>
-        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Fim previsto</th><th>Dias de atraso</th><th>Responsável</th></tr></thead>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Fim previsto</th><th>Dias de atraso</th><th>Recurso</th></tr></thead>
         <tbody id="dash-atrasadas"></tbody>
       </table></div>
     </div>
     <div class="card" id="dash-alertas-card" hidden>
-      <h3>⚠ Atenção — Urgente/Alta sem responsável ou sem prazo</h3>
-      <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm nenhum responsável definido ou não têm data fim prevista — risco de escapar do radar.</div>
+      <h3>⚠ Atenção — Urgente/Alta sem recurso ou sem prazo</h3>
+      <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm nenhum recurso definido ou não têm data fim prevista — risco de escapar do radar.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Código</th><th>Atividade</th><th>Prioridade</th><th>Frente</th><th>O que falta</th></tr></thead>
         <tbody id="dash-alertas"></tbody>
       </table></div>
     </div>
     <div class="card">
-      <h3>Horas por responsável (previsto × realizado)</h3>
-      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada pessoa aparece como responsável/participante. Cada atividade é contada por inteiro para todos os seus participantes, independente de quantos sejam. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
+      <h3>Horas por recurso (previsto × realizado)</h3>
+      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada recurso aparece como participante. Cada atividade é contada por inteiro para todos os seus participantes, independente de quantos sejam. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Responsável</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
+        <thead><tr><th>Recurso</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
         <tbody id="dash-horas-resp"></tbody>
       </table></div>
     </div>
@@ -383,7 +383,7 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
       <div>
         <h2 class="view-title">Cronograma</h2>
-        <div class="view-sub">Atividades planejadas — filtre por período, frente, etapa ou responsável.</div>
+        <div class="view-sub">Atividades planejadas — filtre por período, frente, etapa ou recurso.</div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn secondary small" id="btn-import-cronograma">Importar Cronograma (Excel/CSV)</button>
@@ -403,7 +403,7 @@
       <select id="f-etapa"><option value="">Etapa (todas)</option></select>
       <select id="f-frente"><option value="">Frente (todas)</option></select>
       <select id="f-status"><option value="">Status (todos)</option></select>
-      <select id="f-responsavel"><option value="">Responsável (todos)</option></select>
+      <select id="f-responsavel"><option value="">Recurso (todos)</option></select>
       <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-muted);">
         <input type="checkbox" id="f-atrasadas"> só atrasadas
       </label>
@@ -415,7 +415,7 @@
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Código</th><th>Atividade</th><th>Etapa/Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>%</th><th>Horas (prev./real.)</th><th>Responsáveis</th><th>Crítica</th>
+          <th>Código</th><th>Atividade</th><th>Etapa/Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>%</th><th>Horas (prev./real.)</th><th>Recursos</th><th>Crítica</th>
         </tr></thead>
         <tbody id="atividades-tbody"></tbody>
       </table>
@@ -461,7 +461,7 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Código</th><th>Tipo</th><th>Título/Frente</th><th>Classificação</th><th>Atendimento</th><th>Status</th><th>Responsável</th></tr></thead>
+        <thead><tr><th>Código</th><th>Tipo</th><th>Título/Frente</th><th>Classificação</th><th>Atendimento</th><th>Status</th><th>Recurso</th></tr></thead>
         <tbody id="requisitos-tbody"></tbody>
       </table>
     </div>
@@ -486,7 +486,7 @@
   <!-- ============ MINHAS ATIVIDADES ============ -->
   <section class="view" id="view-minhas-atividades">
     <h2 class="view-title">Minhas atividades</h2>
-    <div class="view-sub">Atividades em que você é um dos responsáveis/participantes na semana selecionada, <b>em todos os projetos</b> — ajuste as horas de cada dia ou apenas confirme a execução.</div>
+    <div class="view-sub">Atividades em que você é um dos recursos participantes na semana selecionada, <b>em todos os projetos</b> — ajuste as horas de cada dia ou apenas confirme a execução.</div>
 
     <div class="filters">
       <button class="btn secondary small" id="ma-prev">‹ Semana anterior</button>
@@ -496,10 +496,8 @@
     </div>
 
     <div class="card" id="ma-nao-vinculado" hidden>
-      <h3>Sem vínculo com um profissional cadastrado</h3>
-      <div class="view-sub" style="margin-top:-6px;margin-bottom:0;">
-        O e-mail do seu login não corresponde ao e-mail de nenhum Responsável cadastrado. Peça para alguém cadastrar (ou corrigir) o seu e-mail em <b>Configurações › Responsáveis</b> para que suas atividades apareçam aqui.
-      </div>
+      <h3 id="ma-nao-vinculado-titulo">Sem vínculo com um profissional cadastrado</h3>
+      <div class="view-sub" style="margin-top:-6px;margin-bottom:0;" id="ma-nao-vinculado-texto"></div>
     </div>
 
     <div class="table-wrap" id="ma-table-wrap">
@@ -513,10 +511,10 @@
   <!-- ============ CONFIGURAÇÕES ============ -->
   <section class="view" id="view-configuracoes">
     <h2 class="view-title">Configurações</h2>
-    <div class="view-sub">Cadastros base do projeto: dados do projeto, responsáveis, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
+    <div class="view-sub">Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
     <div class="modal-tabs" id="cfg-tabs" style="border:none;padding:0;margin-bottom:16px;">
       <button data-cfg="projeto" class="active">Dados do Projeto</button>
-      <button data-cfg="responsaveis">Responsáveis</button>
+      <button data-cfg="responsaveis">Recursos</button>
       <button data-cfg="etapas">Etapas</button>
       <button data-cfg="frentes">Frentes de Trabalho</button>
       <button data-cfg="tipos">Tipos de Atividade Elementar</button>
@@ -620,7 +618,7 @@
     <div class="modal-head"><h2 id="at-modal-title">Nova atividade</h2><button class="btn ghost" id="at-close">✕</button></div>
     <div class="modal-tabs">
       <button data-pane="detalhes" class="active">Detalhes</button>
-      <button data-pane="responsaveis">Responsáveis</button>
+      <button data-pane="responsaveis">Recursos</button>
       <button data-pane="relatos">Relatos</button>
       <button data-pane="dependencias">Dependências</button>
       <button data-pane="requisitos">Requisitos vinculados</button>
@@ -683,7 +681,7 @@
           <label for="at-relato-pendencia" style="margin:0;">É uma pendência (impede o andamento da atividade)</label>
         </div>
         <div id="at-relato-pendencia-campos" style="display:none;" class="modal-body" >
-          <div class="field"><label>Responsável pela pendência</label><select id="at-relato-pend-responsavel"></select></div>
+          <div class="field"><label>Recurso responsável pela pendência</label><select id="at-relato-pend-responsavel"></select></div>
           <div class="field"></div>
           <div class="field"><label>Prazo possível</label><input id="at-relato-pend-prazo" type="date"></div>
           <div class="field"><label>Data limite</label><input id="at-relato-pend-limite" type="date"></div>
@@ -745,7 +743,7 @@
       <div class="field"><label>Módulo de origem (do TR)</label><input id="req-modulo" type="text" placeholder="Ex: 4. Gestão da Folha de Pagamento"></div>
       <div class="field"><label>Prioridade</label><select id="req-prioridade"><option>Urgente</option><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
       <div class="field"><label>Frente de trabalho</label><select id="req-frente"></select></div>
-      <div class="field"><label>Responsável</label><select id="req-responsavel"></select></div>
+      <div class="field"><label>Recurso</label><select id="req-responsavel"></select></div>
       <div class="field"><label>Classificação</label>
         <select id="req-classificacao"><option>Essencial/Imediato</option><option>Obrigatório</option><option>Desejável</option><option>Customizado Curto</option><option>Customizado Médio</option><option>Customizado Longo</option></select>
       </div>
@@ -816,7 +814,7 @@
           Nomes dos recursos (a ordem não importa, os nomes do cabeçalho é que precisam bater). A importação
           sempre atualiza o projeto atual — atividades e marcos já cadastrados são casados com a linha
           correspondente da planilha (pelo Id da tarefa, ou pelo código WBS se ainda não tiverem esse Id
-          guardado) e atualizados em vez de duplicados; campos preenchidos manualmente no sistema (responsável,
+          guardado) e atualizados em vez de duplicados; campos preenchidos manualmente no sistema (recurso,
           tipo de atividade, status "Bloqueada"/"Cancelada", observações, item do TR) não são sobrescritos.
         </p>
       </div>
@@ -893,7 +891,7 @@
         progresso por frente, atividades atrasadas, bloqueios, riscos abertos e uma previsão de conclusão da(s)
         atividade(s) marcada(s) como <strong>★ atividade master</strong> (ex: Folha definitiva).</p>
         <p class="muted" style="margin-top:8px;">Os dados do projeto (nomes de atividades, prazos, status, nomes de
-        responsáveis) são enviados à API da Anthropic para gerar o texto — não é dado de folha de pagamento real.
+        recursos) são enviados à API da Anthropic para gerar o texto — não é dado de folha de pagamento real.
         A geração pode levar de 15 a 40 segundos.</p>
       </div>
       <div id="re-loading" hidden style="text-align:center;padding:30px 0;">
@@ -916,16 +914,16 @@
   </div>
 </div>
 
-<!-- ================= MODAL: RELATÓRIO DE MINHAS ATIVIDADES ================= -->
+<!-- ================= MODAL: RELATÓRIO DE HORAS DOS RECURSOS ================= -->
 <div class="overlay" id="overlay-relatorio-atividades" hidden>
   <div class="modal" style="max-width:520px;">
-    <div class="modal-head"><h2>🕒 Relatório de Minhas Atividades</h2><button class="btn ghost" id="ra-close">✕</button></div>
+    <div class="modal-head"><h2>🕒 Relatório de Horas dos Recursos</h2><button class="btn ghost" id="ra-close">✕</button></div>
     <div class="modal-body single-col">
       <p class="muted">Apontamento de horas (previsto × realizado) lançado em "Minhas atividades", em
-        <strong>todos os projetos</strong> — filtre por consultor e período e gere em PDF ou planilha.</p>
+        <strong>todos os projetos</strong> — filtre por recurso e período e gere em PDF ou planilha.</p>
       <div class="field full">
-        <label>Consultor</label>
-        <select id="ra-consultor"><option value="">Todos os consultores</option></select>
+        <label>Recurso</label>
+        <select id="ra-consultor"><option value="">Todos os recursos</option></select>
       </div>
       <div class="field full">
         <label>Mês/Ano (preenche o período automaticamente)</label>
@@ -1132,7 +1130,7 @@ function wireSeletorProjeto(){
 
 // Troca o projeto ativo (selecionado no cabeçalho) e recarrega só os dados
 // que são vinculados a um projeto específico (etapas/frentes/atividades/
-// requisitos/riscos/marcos) — tipos de atividade, responsáveis, usuários e
+// requisitos/riscos/marcos) — tipos de atividade, recursos, usuários e
 // parâmetros do site são catálogos globais, compartilhados entre todos os
 // projetos, então não precisam ser recarregados numa troca.
 async function trocarProjeto(id){
@@ -1372,13 +1370,13 @@ function fillStaticSelects(){
   $("at-tipo").innerHTML = `<option value="">—</option>` + TIPOS.map(t=>`<option value="${t.id}">${esc(t.nome)}${t.ativo===false?" (inativo)":""}</option>`).join("");
   $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
 
-  // Nota: as listas de responsáveis NÃO filtram só "ativo" — um responsável
+  // Nota: as listas de recursos NÃO filtram só "ativo" — um recurso
   // marcado inativo continua aparecendo (com "(inativo)" no rótulo) porque
   // atividades antigas ainda podem apontar pra ele; escondê-lo faria o campo
   // "resetar" silenciosamente pro vazio ao reabrir/editar a atividade.
   const recursoLabel = r => `${esc(r.nome)} (${esc(r.tipo_vinculo||"—")}${r.cargo?" · "+esc(r.cargo):""})${r.ativo===false?" — inativo":""}`;
   const recursoOpts = RECURSOS.map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
-  $("f-responsavel").innerHTML = `<option value="">Responsável (todos)</option>` + recursoOpts;
+  $("f-responsavel").innerHTML = `<option value="">Recurso (todos)</option>` + recursoOpts;
   $("req-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
   $("at-relato-pend-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
 
@@ -1426,13 +1424,32 @@ function celulaHorasDia(d){
   </td>`;
 }
 
+// Mensagens do card "sem vínculo" -- distinguem os dois motivos que
+// backend/app/minhas_atividades.py::montar_grade() pode devolver quando
+// vinculado=false (ver docstring do módulo e recursos_do_usuario()).
+const MA_MOTIVO_TEXTO = {
+  sem_recurso_vinculado: {
+    titulo: "Sem vínculo com um recurso cadastrado",
+    texto: "O e-mail com que você entrou não bate com nenhum Recurso cadastrado. Peça ao administrador para cadastrar você em Configurações → Recursos com este e-mail, ou corrigir o e-mail do recurso já cadastrado.",
+  },
+  sem_controle_horas: {
+    titulo: "Este recurso não controla horas por atividade",
+    texto: "Seu cadastro de Recurso existe, mas a opção \"Controla horas por atividade\" está desativada — por isso você não pode apontar horas aqui. Peça ao administrador para habilitá-la em Configurações → Recursos, se você precisa registrar apontamento.",
+  },
+};
+
 function renderMinhasAtividades(){
   if(!MA_GRADE) return;
   const dias = MA_GRADE.semana.dias;
   $("ma-semana-label").textContent = `${fmtDate(dias[0])} a ${fmtDate(dias[dias.length-1])}`;
   $("ma-nao-vinculado").hidden = MA_GRADE.vinculado;
   $("ma-table-wrap").hidden = !MA_GRADE.vinculado;
-  if(!MA_GRADE.vinculado) return;
+  if(!MA_GRADE.vinculado){
+    const msg = MA_MOTIVO_TEXTO[MA_GRADE.motivo] || MA_MOTIVO_TEXTO.sem_recurso_vinculado;
+    $("ma-nao-vinculado-titulo").textContent = msg.titulo;
+    $("ma-nao-vinculado-texto").textContent = msg.texto;
+    return;
+  }
 
   const nomesDia = ["Seg","Ter","Qua","Qui","Sex"];
   $("ma-thead-row").innerHTML = `<th>Projeto</th><th>Atividade</th>` +
@@ -1641,7 +1658,7 @@ function horasCell(a){
   return `<span class="mono" style="color:${cor};" title="${titulo}">${prev??"—"}h / ${real}h</span>`;
 }
 
-// Atividade pode ter N responsáveis (ver aba "Responsáveis" no modal e a
+// Atividade pode ter N recursos (ver aba "Recursos" no modal e a
 // tabela atividade_recurso) — mostra os 2 primeiros por extenso e um "+N"
 // pros demais, com a lista completa no title (tooltip) pra não precisar
 // abrir o modal só pra ver quem mais está envolvido.
@@ -1756,10 +1773,10 @@ function renderDashboard(){
     : `<li class="muted">Nenhum marco pendente.</li>`;
 
   renderAlertasPrioridade();
-  renderHorasPorResponsavel();
+  renderHorasPorRecurso();
 }
 
-// Atividades Urgente/Alta, ainda não concluídas/canceladas, sem nenhum responsável ou sem fim previsto —
+// Atividades Urgente/Alta, ainda não concluídas/canceladas, sem nenhum recurso ou sem fim previsto —
 // ficam fáceis de esquecer porque não aparecem em "atrasadas" enquanto não passar do prazo (ou nem tem prazo).
 function renderAlertasPrioridade(){
   const alertas = ATIVIDADES.filter(a =>
@@ -1772,7 +1789,7 @@ function renderAlertasPrioridade(){
   if(!alertas.length) return;
   $("dash-alertas").innerHTML = alertas.map(a=>{
     const faltando = [];
-    if(!(a.responsaveis||[]).length) faltando.push("sem responsável");
+    if(!(a.responsaveis||[]).length) faltando.push("sem recurso");
     if(!a.dtfim_prev) faltando.push("sem data fim prevista");
     return `<tr class="clickable" data-id="${a.id}">
       <td class="mono">${esc(a.codigo_wbs||"—")}</td><td>${esc(a.nome)}</td>
@@ -1786,12 +1803,12 @@ function renderAlertasPrioridade(){
   });
 }
 
-// Soma horas previstas/realizadas por responsável, a partir das atividades já carregadas —
+// Soma horas previstas/realizadas por recurso, a partir das atividades já carregadas —
 // não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS. Uma
 // atividade com N participantes credita o previsto/realizado da atividade INTEIRO a CADA
-// um deles (não dividido) — é assim que o dono do dado pediu: "cada responsável realizou
+// um deles (não dividido) — é assim que o dono do dado pediu: "cada recurso realizou
 // essa atividade, cada um com 2h", independente de quantos participaram.
-function renderHorasPorResponsavel(){
+function renderHorasPorRecurso(){
   // Diferença só é calculada sobre o subconjunto de atividades que já têm horas_realizadas
   // lançadas — comparar realizado x previsto do total (incluindo o que nem começou) faria
   // parecer que todo mundo está muito "abaixo do previsto" só porque o trabalho ainda não
@@ -1830,7 +1847,7 @@ function renderHorasPorResponsavel(){
       <td class="mono">${temLancamento? l.realizadas.toFixed(1)+"h" : "—"}</td>
       <td class="mono" style="color:${corDif};" title="${tituloDif}">${difTxt}</td>
     </tr>`;
-  }).join("") : `<tr class="empty-row"><td colspan="6">Nenhuma atividade com responsável cadastrada ainda.</td></tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="6">Nenhuma atividade com recurso cadastrado ainda.</td></tr>`;
 }
 
 // ================= CAMINHO CRÍTICO =================
@@ -2021,7 +2038,7 @@ function openAtividadeModal(atividade){
   $("overlay-atividade").hidden = false;
   if(atividade){ refreshResponsaveis(); refreshDeps(); refreshReqs(); refreshAnexos(); refreshRelatos(); }
   else {
-    $("at-resp-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar responsáveis.</li>`;
+    $("at-resp-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar recursos.</li>`;
     $("at-deps-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar dependências.</li>`;
     $("at-reqs-list").innerHTML=""; $("at-anexos-list").innerHTML="";
     $("at-relatos-list").innerHTML = `<li class="muted">Salve a atividade antes de registrar relatos.</li>`;
@@ -2061,7 +2078,7 @@ async function refreshResponsaveis(){
   const resp = await api(`/atividades/${editingAtividadeId}/recursos`);
   $("at-resp-list").innerHTML = resp.length ? resp.map(r=>`
     <li><span>${esc(r.recurso_nome)} <span class="muted">(${esc(r.tipo_vinculo||"—")})</span></span>
-    <button class="btn ghost" data-resp="${r.recurso_id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum responsável adicionado ainda.</li>`;
+    <button class="btn ghost" data-resp="${r.recurso_id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum recurso adicionado ainda.</li>`;
   $("at-resp-list").querySelectorAll("button[data-resp]").forEach(b=>b.addEventListener("click", async ()=>{
     await api(`/atividades/${editingAtividadeId}/recursos/${b.dataset.resp}`, {method:"DELETE"});
     await refreshResponsaveis();
@@ -2115,7 +2132,7 @@ async function refreshRelatos(){
       const resp = r.pendencia_responsavel_nome || "—";
       pendBlock = `<div style="margin-top:6px;">
         ${pill(r.pendencia_resolvida ? "Pendência resolvida" : "Pendência aberta", r.pendencia_resolvida ? "ok" : "danger")}
-        <span class="muted" style="margin-left:8px;">Responsável: ${esc(resp)} · Prazo possível: ${fmtDate(r.pendencia_prazo_possivel)} · Data limite: ${fmtDate(r.pendencia_data_limite)}</span>
+        <span class="muted" style="margin-left:8px;">Recurso: ${esc(resp)} · Prazo possível: ${fmtDate(r.pendencia_prazo_possivel)} · Data limite: ${fmtDate(r.pendencia_data_limite)}</span>
         ${!r.pendencia_resolvida ? `<button class="btn ghost" data-resolver="${r.id}" style="margin-left:8px;">Marcar como resolvida</button>` : ""}
       </div>`;
     }
@@ -2727,12 +2744,15 @@ function mostrarRelatorioExecutivo(row){
   $("re-texto").innerHTML = markdownSimplesParaHtml(row.conteudo_md);
 }
 
-// ================= RELATÓRIO DE MINHAS ATIVIDADES (apontamento de horas) =================
+// ================= RELATÓRIO DE HORAS DOS RECURSOS (apontamento em "Minhas atividades") =================
 // Diferente do Relatório Executivo, é 100% determinístico e gerado na hora
 // (sem IA, sem persistir nada) — os botões só montam a URL com os filtros
 // e abrem em nova aba, deixando o navegador/backend cuidar do download
 // (mesmo padrão de "re-baixar-pdf" acima). Escopo: todos os projetos, como
 // "Minhas atividades" (ver docstring de backend/app/relatorio_atividades.py).
+// O filtro de recurso só lista quem tem controla_horas=true, já que só esses
+// podem registrar apontamento em "Minhas atividades" (os demais nunca teriam
+// nada pra aparecer no relatório).
 function wireRelatorioAtividades(){
   $("btn-relatorio-atividades")?.addEventListener("click", abrirRelatorioAtividadesModal);
   $("ra-close").addEventListener("click", ()=>{ $("overlay-relatorio-atividades").hidden = true; });
@@ -2751,8 +2771,8 @@ function wireRelatorioAtividades(){
 
 function abrirRelatorioAtividadesModal(){
   $("ra-erro").textContent = "";
-  $("ra-consultor").innerHTML = `<option value="">Todos os consultores</option>` +
-    RECURSOS.map(r=>`<option value="${r.id}">${esc(r.nome)} (${esc(r.tipo_vinculo||"—")})</option>`).join("");
+  $("ra-consultor").innerHTML = `<option value="">Todos os recursos</option>` +
+    RECURSOS.filter(r=>r.controla_horas!==false).map(r=>`<option value="${r.id}">${esc(r.nome)} (${esc(r.tipo_vinculo||"—")})</option>`).join("");
   $("ra-mes-ano").value = "";
   $("ra-data-ini").value = ""; $("ra-data-fim").value = "";
   $("overlay-relatorio-atividades").hidden = false;
@@ -2782,11 +2802,11 @@ function gerarRelatorioAtividades(formato){
   window.open(`${API}/relatorios/minhas-atividades/${rota}?${params.toString()}`, "_blank");
 }
 
-// ================= CONFIGURAÇÕES (CRUD genérico: Responsáveis, Etapas, Frentes, Tipos) =================
+// ================= CONFIGURAÇÕES (CRUD genérico: Recursos, Etapas, Frentes, Tipos) =================
 const TIPO_VINCULO_COLOR = {"Techne":"accent","Cliente":"ok","Terceirizado":"warn"};
 const CONFIG_ENTIDADES = {
   responsaveis: {
-    tituloSingular: "Responsável", tituloPlural: "Responsáveis", endpoint: "recursos", comProjeto: false,
+    tituloSingular: "Recurso", tituloPlural: "Recursos", endpoint: "recursos", comProjeto: false,
     ordenar: r => (r.nome||"").toLowerCase(),
     colunas: [
       {chave:"nome", rotulo:"Nome"},
@@ -2794,6 +2814,7 @@ const CONFIG_ENTIDADES = {
       {chave:"empresa", rotulo:"Empresa"},
       {chave:"tipo_vinculo", rotulo:"Vínculo", render:v=>pill(v||"—", TIPO_VINCULO_COLOR[v]||"faint")},
       {chave:"email", rotulo:"E-mail"},
+      {chave:"controla_horas", rotulo:"Controle de horas", render:v=>pill(v===false?"Não":"Sim", v===false?"faint":"ok")},
       {chave:"ativo", rotulo:"Status", render:v=>pill(v===false?"Inativo":"Ativo", v===false?"faint":"ok")},
     ],
     campos: [
@@ -2803,6 +2824,8 @@ const CONFIG_ENTIDADES = {
       {chave:"cargo", rotulo:"Cargo", tipo:"text", placeholder:"Ex: Consultor de Folha, Analista de TI"},
       {chave:"email", rotulo:"E-mail", tipo:"email"},
       {chave:"telefone", rotulo:"Telefone", tipo:"text"},
+      {chave:"controla_horas", rotulo:"Controla horas por atividade", tipo:"checkbox", padrao:true,
+       ajuda:"Só recursos marcados aqui podem registrar apontamento em \"Minhas atividades\" e aparecem como opção de filtro no Relatório de Horas dos Recursos. Não afeta quem pode ser adicionado como participante de uma atividade no Cronograma."},
       {chave:"ativo", rotulo:"Ativo", tipo:"checkbox", padrao:true},
     ],
   },
@@ -2963,20 +2986,21 @@ function renderConfigTable(){
 function cfgFieldHtml(campo, valorAtual){
   const id = `cfg-f-${campo.chave}`;
   const val = valorAtual !== undefined && valorAtual !== null ? valorAtual : (campo.padrao !== undefined ? campo.padrao : "");
+  const ajudaHtml = campo.ajuda ? `<div class="muted" style="margin-top:4px;line-height:1.4;">${esc(campo.ajuda)}</div>` : "";
   if(campo.tipo === "readonly"){
-    return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="text" value="${esc(val)}" disabled></div>`;
+    return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="text" value="${esc(val)}" disabled>${ajudaHtml}</div>`;
   }
   if(campo.tipo === "select"){
-    return `<div class="field"><label>${esc(campo.rotulo)}</label><select id="${id}">${campo.opcoes.map(o=>`<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o)}</option>`).join("")}</select></div>`;
+    return `<div class="field"><label>${esc(campo.rotulo)}</label><select id="${id}">${campo.opcoes.map(o=>`<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o)}</option>`).join("")}</select>${ajudaHtml}</div>`;
   }
   if(campo.tipo === "checkbox"){
-    return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="checkbox" style="width:18px;height:18px;" ${val?"checked":""}></div>`;
+    return `<div class="field${campo.ajuda?" full":""}"><label>${esc(campo.rotulo)}</label><input id="${id}" type="checkbox" style="width:18px;height:18px;" ${val?"checked":""}>${ajudaHtml}</div>`;
   }
   if(campo.tipo === "textarea"){
-    return `<div class="field full"><label>${esc(campo.rotulo)}</label><textarea id="${id}">${esc(val)}</textarea></div>`;
+    return `<div class="field full"><label>${esc(campo.rotulo)}</label><textarea id="${id}">${esc(val)}</textarea>${ajudaHtml}</div>`;
   }
   const ph = campo.placeholder ? ` placeholder="${esc(campo.placeholder)}"` : "";
-  return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="${campo.tipo}" value="${esc(val)}"${ph}></div>`;
+  return `<div class="field"><label>${esc(campo.rotulo)}</label><input id="${id}" type="${campo.tipo}" value="${esc(val)}"${ph}>${ajudaHtml}</div>`;
 }
 
 function openConfigModal(row){

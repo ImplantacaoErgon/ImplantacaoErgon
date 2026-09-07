@@ -1,20 +1,26 @@
 """
-Relatório de Minhas Atividades (apontamento de horas) — gerado a partir do
-Dashboard, ao lado do Relatório Executivo (IA).
+Relatório de Horas dos Recursos (apontamento de horas em "Minhas
+atividades") — gerado a partir do Dashboard, ao lado do Relatório
+Executivo (IA).
 
 Diferente do Relatório Executivo, este é 100% determinístico (só monta e
 formata dados que já existem em `atividade_horas_dia` — nenhuma IA
 envolvida) e gerado na hora, sem persistir nada no banco: os filtros
-(consultor, período) mudam a cada geração, então não faz sentido guardar
+(recurso, período) mudam a cada geração, então não faz sentido guardar
 histórico como no relatório executivo.
 
 Escopo: como "Minhas atividades" (ver docstring de
 `backend/app/minhas_atividades.py`), este relatório traz o apontamento em
 TODOS os projetos, não só o selecionado no cabeçalho — é uma reconciliação
 de horas trabalhadas na empresa como um todo, por isso cada atividade traz
-consigo o projeto a que pertence.
+consigo o projeto a que pertence. Só recursos com `controla_horas = true`
+registram apontamento em "Minhas atividades" — na prática só eles aparecem
+neste relatório, mas a consulta em si não filtra por essa marca (ela é
+aplicada no combo de filtro do frontend; um recurso que teve a marca
+desativada depois de já ter apontamentos continua aparecendo aqui, o que é
+o comportamento correto para não perder histórico).
 
-`coletar_dados()` faz a consulta e agrupa em memória por consultor →
+`coletar_dados()` faz a consulta e agrupa em memória por recurso →
 atividade → dias, com subtotais em cada nível; `gerar_pdf_bytes()` e
 `gerar_planilha_bytes()` formatam esse mesmo dicionário em PDF (reportlab)
 ou XLSX (openpyxl) — dois formatos, um dado só.
@@ -55,10 +61,10 @@ def _fmt_horas(v):
 
 
 def coletar_dados(recurso_id, data_ini, data_fim):
-    """Monta a estrutura completa do relatório: lista de consultores, cada um
+    """Monta a estrutura completa do relatório: lista de recursos, cada um
     com suas atividades (com subtotal previsto/realizado) e, dentro de cada
     atividade, os lançamentos diários. `recurso_id` None/vazio = todos os
-    consultores que tiverem ao menos um lançamento no período."""
+    recursos que tiverem ao menos um lançamento no período."""
     filtro_recurso = f"AND hd.recurso_id = {db.q(recurso_id)}" if recurso_id else ""
     linhas = db.fetch_all(f"""
         SELECT hd.data, hd.horas_previstas, hd.horas_realizadas, hd.confirmado,
@@ -151,7 +157,7 @@ def _tabela_resumo_atividades(consultor, estilos):
             Paragraph(subtitulo or "—", estilos["corpo"]),
             _fmt_horas(at["total_previsto"]), _fmt_horas(at["total_realizado"]),
         ])
-    linhas.append(["Total do consultor", "", "", _fmt_horas(consultor["total_previsto"]),
+    linhas.append(["Total do recurso", "", "", _fmt_horas(consultor["total_previsto"]),
                     _fmt_horas(consultor["total_realizado"])])
     t = Table(linhas, colWidths=[6.5 * cm, 2.3 * cm, 3.8 * cm, 2.2 * cm, 2.2 * cm], repeatRows=1)
     t.setStyle(TableStyle([
@@ -203,15 +209,15 @@ def gerar_pdf_bytes(dados):
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
         topMargin=1.8 * cm, bottomMargin=1.6 * cm, leftMargin=1.8 * cm, rightMargin=1.8 * cm,
-        title="Relatório de Minhas Atividades",
+        title="Relatório de Horas dos Recursos",
     )
     periodo_txt = f"{_fmt_data_br(dados['periodo']['inicio'])} a {_fmt_data_br(dados['periodo']['fim'])}"
     consultores = dados["consultores"]
-    filtro_txt = consultores[0]["recurso_nome"] if (dados["recurso_filtrado"] and len(consultores) == 1) else "Todos os consultores"
+    filtro_txt = consultores[0]["recurso_nome"] if (dados["recurso_filtrado"] and len(consultores) == 1) else "Todos os recursos"
 
     flow = [
-        Paragraph("Relatório de Minhas Atividades", estilos["titulo"]),
-        Paragraph(f"Período: {periodo_txt} · Consultor(es): {filtro_txt}", estilos["subtitulo"]),
+        Paragraph("Relatório de Horas dos Recursos", estilos["titulo"]),
+        Paragraph(f"Período: {periodo_txt} · Recurso(s): {filtro_txt}", estilos["subtitulo"]),
         Paragraph("Apontamento de horas (previsto × realizado) lançado em \"Minhas atividades\", em todos os projetos.",
                   estilos["subtitulo"]),
         Spacer(1, 6),
@@ -233,7 +239,7 @@ def gerar_pdf_bytes(dados):
         flow.append(HRFlowable(width="100%", thickness=0.6, color=colors.HexColor("#cccccc")))
         flow.append(Spacer(1, 6))
         total_linha = Table(
-            [["Total geral (todos os consultores listados)", _fmt_horas(dados["total_geral_previsto"]),
+            [["Total geral (todos os recursos listados)", _fmt_horas(dados["total_geral_previsto"]),
               _fmt_horas(dados["total_geral_realizado"])]],
             colWidths=[10.6 * cm, 2.2 * cm, 2.2 * cm],
         )
@@ -249,7 +255,7 @@ def gerar_pdf_bytes(dados):
 
     flow.append(Spacer(1, 14))
     flow.append(Paragraph(
-        "\"Realizado\" só considera dias já confirmados pelo consultor em \"Minhas atividades\". "
+        "\"Realizado\" só considera dias já confirmados pelo recurso em \"Minhas atividades\". "
         "Estes números são independentes das horas previstas/realizadas registradas na atividade do Cronograma "
         "(que são um total único por atividade, não dividido entre os participantes).",
         estilos["rodape"],
@@ -279,7 +285,7 @@ def gerar_planilha_bytes(dados):
     # ---- aba Resumo: uma linha por atividade por consultor, com subtotal ----
     ws1 = wb.active
     ws1.title = "Resumo"
-    cabecalho = ["Consultor", "Vínculo", "Atividade", "Código", "Projeto", "Etapa", "Frente",
+    cabecalho = ["Recurso", "Vínculo", "Atividade", "Código", "Projeto", "Etapa", "Frente",
                  "Previsto (h)", "Realizado (h)"]
     ws1.append(cabecalho)
     _estilo_cabecalho(ws1, 1, len(cabecalho))
@@ -307,7 +313,7 @@ def gerar_planilha_bytes(dados):
 
     # ---- aba Detalhe: um lançamento diário por linha ----
     ws2 = wb.create_sheet("Detalhe")
-    cabecalho2 = ["Consultor", "Vínculo", "Data", "Atividade", "Código", "Projeto",
+    cabecalho2 = ["Recurso", "Vínculo", "Data", "Atividade", "Código", "Projeto",
                   "Previsto (h)", "Realizado (h)", "Confirmado"]
     ws2.append(cabecalho2)
     _estilo_cabecalho(ws2, 1, len(cabecalho2), cor_hex="5C7A90")
