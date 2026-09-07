@@ -150,6 +150,9 @@
   .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;}
   .dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
 
+  /* ---- trecho de manual com termos de busca destacados (Analisar Requisitos) ---- */
+  .ref-trecho mark{background:#fde68a;color:#1a1a1a;padding:0 2px;border-radius:3px;}
+
   /* ---- minhas atividades (grade semanal) ---- */
   table.ma-table{min-width:760px;}
   table.ma-table td.ma-atividade{min-width:220px;}
@@ -356,6 +359,7 @@
       <button data-view="cronograma">Cronograma</button>
       <button data-view="critico">Caminho Crítico</button>
       <button data-view="requisitos">Requisitos TR</button>
+      <button data-view="analisar-requisitos">🔍 Analisar Requisitos</button>
       <button data-view="riscos">Riscos &amp; Marcos</button>
       <button data-view="minhas-atividades">Minhas atividades</button>
       <button data-view="configuracoes">⚙ Configurações</button>
@@ -513,6 +517,39 @@
     </div>
   </section>
 
+  <!-- ============ ANALISAR REQUISITOS (25ª rodada) ============ -->
+  <section class="view" id="view-analisar-requisitos">
+    <h2 class="view-title">Analisar Requisitos</h2>
+    <div class="view-sub">Busca por palavra-chave (sem inteligência artificial) nos manuais do sistema cadastrados em Configurações, sugerindo manual e página como referência para cada requisito do TR — sempre um candidato para revisão do consultor, nunca uma resposta automática.</div>
+    <div class="card" id="ar-sem-manuais" hidden style="margin-bottom:16px;">
+      Nenhum manual do sistema ativo cadastrado ainda. Cadastre em <strong>Configurações → 📚 Manuais do Sistema</strong> antes de analisar os requisitos.
+    </div>
+    <div class="kpis" id="ar-kpis"></div>
+    <div class="filters">
+      <input type="text" id="ar-search" placeholder="Buscar por código, título, descrição…">
+      <select id="ar-frente"><option value="">Frente (todas)</option></select>
+      <select id="ar-classificacao"><option value="">Classificação (todas)</option></select>
+      <select id="ar-atendimento"><option value="">Atendimento (todos)</option></select>
+      <select id="ar-status"><option value="">Status (todos)</option></select>
+      <select id="ar-so-sem-analise"><option value="">Todos</option><option value="1">Só sem análise ainda</option></select>
+    </div>
+    <div class="filters">
+      <span class="muted" id="ar-qtd-label" style="margin-right:auto;">0 requisitos</span>
+      <button class="btn secondary small" id="ar-analisar-selecionados" disabled>🔍 Analisar selecionados (<span id="ar-qtd-selecionados">0</span>)</button>
+      <button class="btn small" id="ar-analisar-filtrados">🔍 Analisar todos os filtrados</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:30px;"><input type="checkbox" id="ar-check-all"></th>
+          <th>Código</th><th>Título/Frente</th><th>Atendimento</th><th>Status</th>
+          <th>Referências</th><th>Última análise</th><th></th>
+        </tr></thead>
+        <tbody id="ar-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ============ RISCOS & MARCOS ============ -->
   <section class="view" id="view-riscos">
     <h2 class="view-title">Riscos &amp; Marcos</h2>
@@ -567,6 +604,7 @@
       <button data-cfg="calendario">📅 Calendário de Feriados</button>
       <button data-cfg="usuarios">Usuários</button>
       <button data-cfg="parametros">Parâmetros</button>
+      <button data-cfg="manuais">📚 Manuais do Sistema</button>
       <button data-cfg="documentacao">📄 Documentação</button>
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;" id="cfg-add-wrap">
@@ -646,6 +684,31 @@
       </div>
     </div>
 
+    <!-- Manuais do Sistema (25ª rodada): catálogo GLOBAL (não por projeto —
+         os mesmos manuais valem pra qualquer implantação) de PDFs usados na
+         busca por palavra-chave da tela Analisar Requisitos. Upload
+         multipart (nome + versão + arquivo), mesmo princípio de base64 no
+         banco do logo (sem depender de disco local do container). -->
+    <div id="cfg-manuais-pane" hidden style="max-width:860px;">
+      <div class="card">
+        <h3>Enviar novo manual</h3>
+        <div class="view-sub" style="margin-top:-6px;">PDF — o texto de cada página é extraído automaticamente para viabilizar a busca. Cadastro único, compartilhado entre todos os projetos.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
+          <div style="flex:1 1 220px;"><label style="display:block;font-size:11.5px;margin-bottom:4px;">Nome *</label><input type="text" id="manual-novo-nome" placeholder="Ex: Manual do Módulo Folha"></div>
+          <div style="width:120px;"><label style="display:block;font-size:11.5px;margin-bottom:4px;">Versão</label><input type="text" id="manual-novo-versao" placeholder="Ex: 2024.1"></div>
+          <div><label style="display:block;font-size:11.5px;margin-bottom:4px;">Arquivo PDF *</label><input type="file" id="manual-novo-arquivo" accept="application/pdf"></div>
+          <button class="btn small" id="manual-enviar">Enviar</button>
+        </div>
+        <div class="muted" id="manual-enviar-status" style="margin-top:8px;"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Versão</th><th>Páginas</th><th>Tamanho</th><th>Ativo</th><th>Enviado em</th><th></th></tr></thead>
+          <tbody id="manuais-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Documentação (19ª rodada): dois documentos vivos do próprio sistema
          (Documento Executivo / Documento Técnico), guardados no banco (tabela
          `documentacao`, PUT /api/documentacao/<tipo>) e mantidos sempre
@@ -706,6 +769,41 @@
     <div class="modal-foot">
       <div></div>
       <div style="display:flex;gap:8px;"><button class="btn secondary" id="dupcal-cancel">Cancelar</button><button class="btn" id="dupcal-confirmar">Duplicar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: ANALISAR REQUISITO (detalhe) ================= -->
+<div class="overlay" id="overlay-analisar-detalhe" hidden>
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><h2 id="ard-titulo">Requisito</h2><button class="btn ghost" id="ard-close">✕</button></div>
+    <div class="modal-body single-col">
+      <div class="muted mono" id="ard-codigo-frente" style="margin-bottom:2px;"></div>
+      <div style="font-size:13px;line-height:1.5;margin:8px 0 16px;" id="ard-descricao"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);">Referências encontradas nos manuais</h3>
+        <button class="btn small secondary" id="ard-analisar">🔍 Analisar</button>
+      </div>
+      <div class="muted" id="ard-analisado-em" style="margin-bottom:8px;font-size:12px;"></div>
+      <div id="ard-referencias" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+
+      <div class="card" style="margin:0 0 16px;">
+        <h3 style="font-size:12.5px;">+ Adicionar referência manual</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="flex:1 1 220px;"><label class="muted" style="display:block;font-size:11px;margin-bottom:3px;">Manual</label><select id="ard-add-manual"></select></div>
+          <div style="width:90px;"><label class="muted" style="display:block;font-size:11px;margin-bottom:3px;">Página</label><input type="number" min="1" id="ard-add-pagina"></div>
+          <button class="btn small" id="ard-add-confirmar">Adicionar</button>
+        </div>
+        <textarea id="ard-add-trecho" placeholder="Trecho (opcional)" style="width:100%;margin-top:8px;min-height:50px;font-family:inherit;font-size:12.5px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></textarea>
+      </div>
+
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:8px;">Resposta oficial</h3>
+      <textarea id="ard-resposta-oficial" placeholder="Complemento do consultor sobre o atendimento deste requisito…" style="width:100%;min-height:90px;font-family:inherit;font-size:13px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></textarea>
+    </div>
+    <div class="modal-foot">
+      <div></div>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="ard-cancelar">Fechar</button><button class="btn" id="ard-salvar-resposta">Salvar resposta oficial</button></div>
     </div>
   </div>
 </div>
@@ -1186,7 +1284,7 @@ async function chamarAuthApi(path, body){
 // ---------------- estado global ----------------
 let USUARIO_LOGADO = null;
 let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
-let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[], CALENDARIO=[];
+let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[], CALENDARIO=[], MANUAIS=[];
 let editingAtividadeId=null, editingRequisitoId=null;
 let MA_DATA_REF=new Date(), MA_GRADE=null; // "Minhas atividades" — data de referência da semana mostrada e último retorno do servidor
 const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
@@ -1256,7 +1354,7 @@ async function recarregarDadosDoProjeto(){
   fillStaticSelects();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
   fillStaticSelects();
-  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos();
   // "Minhas atividades" NÃO depende do projeto ativo desde a 16ª rodada
   // (mostra todos os projetos em que o usuário está delegado) — por isso,
   // ao contrário das demais views desta função, não precisa recarregar
@@ -1438,21 +1536,21 @@ async function iniciarApp(){
 }
 
 async function afterProjetoReady(){
-  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, PARAMETROS, CALENDARIO] = await Promise.all([
+  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, PARAMETROS, CALENDARIO, MANUAIS] = await Promise.all([
     api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
     api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`), api(`/parametros`),
-    api(`/calendario?projeto_id=${PROJETO.id}`)
+    api(`/calendario?projeto_id=${PROJETO.id}`), api(`/manuais`)
   ]);
   aplicarMarcaNoTopo();
   fillStaticSelects();
   wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
-  wireConfiguracoes(); wireParametros(); wireMinhasAtividades();
+  wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos();
   setupCsvTemplateLink();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
   // Reaplica agora que REQUISITOS já está carregado — o select "Item do TR" da
   // atividade depende dele e a primeira chamada acima rodou antes desse load.
   fillStaticSelects();
-  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos();
   $("tabs").style.display = "flex";
 }
 
@@ -1467,6 +1565,7 @@ function fillStaticSelects(){
   $("at-frente").innerHTML = frenteOpts(true);
   $("rf-frente").innerHTML = `<option value="">Frente (todas)</option>` + frenteOpts(false);
   $("req-frente").innerHTML = `<option value="">—</option>` + frenteOpts(false);
+  $("ar-frente").innerHTML = `<option value="">Frente (todas)</option>` + frenteOpts(false);
 
   $("at-tipo").innerHTML = `<option value="">—</option>` + TIPOS.map(t=>`<option value="${t.id}">${esc(t.nome)}${t.ativo===false?" (inativo)":""}</option>`).join("");
   $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
@@ -1486,10 +1585,13 @@ function fillStaticSelects(){
 
   const classif = ["Essencial/Imediato","Obrigatório","Desejável","Customizado Curto","Customizado Médio","Customizado Longo"];
   $("rf-classificacao").innerHTML = `<option value="">Classificação (todas)</option>` + classif.map(c=>`<option>${c}</option>`).join("");
+  $("ar-classificacao").innerHTML = `<option value="">Classificação (todas)</option>` + classif.map(c=>`<option>${c}</option>`).join("");
   const atend = ["A analisar","Nativo","Parcial","Customizado","Não atende"];
   $("rf-atendimento").innerHTML = `<option value="">Atendimento (todos)</option>` + atend.map(c=>`<option>${c}</option>`).join("");
+  $("ar-atendimento").innerHTML = `<option value="">Atendimento (todos)</option>` + atend.map(c=>`<option>${c}</option>`).join("");
   const statusReq = ["Não iniciado","Em levantamento","Especificado","Em desenvolvimento","Em homologação","Entregue","Aprovado","Rejeitado"];
   $("rf-status").innerHTML = `<option value="">Status (todos)</option>` + statusReq.map(c=>`<option>${c}</option>`).join("");
+  $("ar-status").innerHTML = `<option value="">Status (todos)</option>` + statusReq.map(c=>`<option>${c}</option>`).join("");
 }
 
 // ================= MINHAS ATIVIDADES (grade semanal do consultor logado) =================
@@ -1668,6 +1770,7 @@ function goToView(view){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+view));
   if(view==="critico") loadCaminhoCritico();
   if(view==="minhas-atividades") carregarMinhasAtividades();
+  if(view==="analisar-requisitos") renderAnalisarRequisitos();
 }
 
 // ================= ATIVIDADES: carregar/filtrar =================
@@ -3164,14 +3267,17 @@ function renderConfigTable(){
   const ehParametros = cfgAbaAtual === "parametros";
   const ehProjeto = cfgAbaAtual === "projeto";
   const ehDocumentacao = cfgAbaAtual === "documentacao";
-  $("cfg-add-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao;
-  $("cfg-table-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao;
+  const ehManuais = cfgAbaAtual === "manuais";
+  $("cfg-add-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
+  $("cfg-table-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
   $("cfg-parametros-pane").hidden = !ehParametros;
   $("cfg-projeto-pane").hidden = !ehProjeto;
   $("cfg-documentacao-pane").hidden = !ehDocumentacao;
+  $("cfg-manuais-pane").hidden = !ehManuais;
   if(ehParametros){ renderParametrosPane(); return; }
   if(ehProjeto){ renderProjetoPane(); return; }
   if(ehDocumentacao){ renderDocumentacaoPane(); return; }
+  if(ehManuais){ renderManuaisPane(); return; }
 
   const def = CONFIG_ENTIDADES[cfgAbaAtual];
   $("cfg-add").style.display = def.semCriar ? "none" : "";
@@ -3429,6 +3535,288 @@ function wireParametros(){
     const valor = $("param-tema").value;
     try{ localStorage.setItem(TEMA_STORAGE_KEY, valor); }catch(e){}
     aplicarTema(valor);
+  });
+}
+
+// ================= Manuais do Sistema (Configurações) =================
+// Catálogo GLOBAL (não por projeto) de PDFs usados na busca por palavra-chave
+// da tela Analisar Requisitos — ver app/manuais.py. Upload multipart, mesmo
+// princípio de base64-no-banco já usado para o logo (parametros_site).
+function fmtBytes(n){
+  if(n==null) return "—";
+  if(n < 1024) return n+" B";
+  if(n < 1024*1024) return (n/1024).toFixed(1)+" KB";
+  return (n/1024/1024).toFixed(1)+" MB";
+}
+
+function renderManuaisPane(){
+  $("manuais-tbody").innerHTML = MANUAIS.length ? MANUAIS.slice().sort((a,b)=>a.nome.localeCompare(b.nome, 'pt-BR')).map(m=>`
+    <tr data-id="${m.id}">
+      <td>${esc(m.nome)}</td>
+      <td>${esc(m.versao||"—")}</td>
+      <td class="mono">${m.paginas_total}</td>
+      <td class="mono">${fmtBytes(m.tamanho_bytes)}</td>
+      <td><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="manual-ativo-toggle" ${m.ativo?"checked":""}> ${m.ativo?"Ativo":"Inativo"}</label></td>
+      <td class="mono">${fmtDateTime(m.enviado_em)}</td>
+      <td style="white-space:nowrap;">
+        <a class="btn ghost small" href="${API}/manuais/${m.id}/arquivo" target="_blank" rel="noopener">Abrir PDF</a>
+        <button class="btn ghost small manual-excluir">🗑</button>
+      </td>
+    </tr>`).join("") : `<tr class="empty-row"><td colspan="7">Nenhum manual cadastrado ainda.</td></tr>`;
+
+  $("manuais-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    const id = tr.dataset.id;
+    tr.querySelector(".manual-ativo-toggle").addEventListener("change", async (e)=>{
+      const checked = e.target.checked;
+      try{
+        const atualizado = await api(`/manuais/${id}`, {method:"PUT", body: JSON.stringify({ativo: checked})});
+        const idx = MANUAIS.findIndex(m=>m.id===id); if(idx>-1) MANUAIS[idx] = atualizado;
+      }catch(err){}
+      renderManuaisPane();
+    });
+    tr.querySelector(".manual-excluir").addEventListener("click", ()=>{
+      const m = byId(MANUAIS, id);
+      askConfirm(`Excluir o manual "${m.nome}"? Referências já encontradas em requisitos continuam registradas (com o nome congelado), mas deixam de apontar para um manual pesquisável.`, async ()=>{
+        try{
+          await api(`/manuais/${id}`, {method:"DELETE"});
+          MANUAIS = MANUAIS.filter(x=>x.id!==id);
+          toast("Manual excluído.");
+          renderManuaisPane();
+        }catch(e){}
+      });
+    });
+  });
+}
+
+function wireManuaisPane(){
+  $("manual-enviar").addEventListener("click", async ()=>{
+    const nome = $("manual-novo-nome").value.trim();
+    const versao = $("manual-novo-versao").value.trim();
+    const file = $("manual-novo-arquivo").files[0];
+    if(!nome || !file){ toast("Informe o nome e escolha o arquivo PDF.", true); return; }
+    const status = $("manual-enviar-status");
+    const btn = $("manual-enviar");
+    btn.disabled = true; status.textContent = "Enviando e extraindo o texto do PDF…";
+    const fd = new FormData();
+    fd.append("nome", nome); fd.append("versao", versao); fd.append("file", file);
+    try{
+      const novo = await api("/manuais", {method:"POST", body: fd});
+      MANUAIS.push(novo);
+      toast(`Manual "${novo.nome}" cadastrado (${novo.paginas_total} páginas).`);
+      $("manual-novo-nome").value = ""; $("manual-novo-versao").value = ""; $("manual-novo-arquivo").value = "";
+      status.textContent = "";
+      renderManuaisPane();
+    }catch(e){
+      status.textContent = "";
+    }finally{
+      btn.disabled = false;
+    }
+  });
+}
+
+// ================= Analisar Requisitos (25ª rodada) =================
+// Tela dedicada (separada do cadastro/lista "Requisitos TR"): busca por
+// palavra-chave (sem IA — ver app/manuais.py) referências nos manuais do
+// sistema pra cada requisito, sempre como CANDIDATO pra revisão do
+// consultor — a classificação de atendimento e a "Resposta oficial"
+// continuam 100% humanas.
+let AR_SELECIONADOS = new Set();
+let AR_DETALHE_ID = null;
+
+function arFilters(){
+  return { search:$("ar-search").value.trim().toLowerCase(), frente:$("ar-frente").value,
+    classificacao:$("ar-classificacao").value, atendimento:$("ar-atendimento").value, status:$("ar-status").value,
+    soSemAnalise: $("ar-so-sem-analise").value === "1" };
+}
+function arListaFiltrada(){
+  const f = arFilters();
+  return REQUISITOS.filter(r=>{
+    if(f.frente && r.frente_trabalho_id!==f.frente) return false;
+    if(f.classificacao && r.classificacao!==f.classificacao) return false;
+    if(f.atendimento && r.atendimento!==f.atendimento) return false;
+    if(f.status && r.status!==f.status) return false;
+    if(f.soSemAnalise && r.analisado_em) return false;
+    if(f.search && !([r.codigo,r.titulo,r.descricao].join(" ").toLowerCase().includes(f.search))) return false;
+    return true;
+  });
+}
+function renderAnalisarRequisitos(){
+  if(!$("ar-tbody")) return; // view ainda não montada (chamada antes do primeiro afterProjetoReady)
+  $("ar-sem-manuais").hidden = MANUAIS.some(m=>m.ativo!==false);
+  const list = arListaFiltrada();
+  $("ar-qtd-label").textContent = `${list.length} requisito${list.length===1?"":"s"}`;
+  // remove da seleção quem saiu do filtro atual (evita "analisar selecionados" agir sobre linha escondida)
+  const idsVisiveis = new Set(list.map(r=>r.id));
+  [...AR_SELECIONADOS].forEach(id=>{ if(!idsVisiveis.has(id)) AR_SELECIONADOS.delete(id); });
+
+  $("ar-tbody").innerHTML = list.length ? list.map(r=>{
+    const qtdRef = (r.referencias_manuais||[]).length;
+    return `
+    <tr class="clickable" data-id="${r.id}">
+      <td><input type="checkbox" class="ar-check" ${AR_SELECIONADOS.has(r.id)?"checked":""}></td>
+      <td class="mono">${esc(r.codigo)}</td>
+      <td>${esc(r.titulo)}<div class="muted">${esc(r.frente_nome||"—")}</div></td>
+      <td>${pill(r.atendimento, ATENDIMENTO_COLOR[r.atendimento])}</td>
+      <td>${pill(r.status, STATUS_COLOR[r.status]||"faint")}</td>
+      <td>${qtdRef ? pill(qtdRef+" referência"+(qtdRef>1?"s":""), "ok") : pill("Nenhuma", "faint")}</td>
+      <td class="mono">${r.analisado_em ? fmtDateTime(r.analisado_em) : "—"}</td>
+      <td><button class="btn ghost small ar-btn-analisar">🔍</button></td>
+    </tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="8">Nenhum requisito encontrado.</td></tr>`;
+
+  $("ar-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    const id = tr.dataset.id;
+    tr.addEventListener("click", ()=>abrirAnalisarDetalhe(id));
+    tr.querySelector(".ar-check").addEventListener("click", e=>e.stopPropagation());
+    tr.querySelector(".ar-check").addEventListener("change", e=>{
+      if(e.target.checked) AR_SELECIONADOS.add(id); else AR_SELECIONADOS.delete(id);
+      atualizarContadorSelecionadosAr();
+    });
+    tr.querySelector(".ar-btn-analisar").addEventListener("click", async (e)=>{
+      e.stopPropagation();
+      await arAnalisarUm(id, true);
+    });
+  });
+  $("ar-check-all").checked = list.length>0 && list.every(r=>AR_SELECIONADOS.has(r.id));
+  atualizarContadorSelecionadosAr();
+}
+function atualizarContadorSelecionadosAr(){
+  $("ar-qtd-selecionados").textContent = AR_SELECIONADOS.size;
+  $("ar-analisar-selecionados").disabled = AR_SELECIONADOS.size===0;
+}
+
+async function arAnalisarUm(id, mostrarToast){
+  try{
+    await api(`/requisitos/${id}/analisar`, {method:"POST"});
+    await loadRequisitos();
+    renderAnalisarRequisitos();
+    if(AR_DETALHE_ID===id) preencherAnalisarDetalhe(byId(REQUISITOS, id));
+    if(mostrarToast){
+      const r = byId(REQUISITOS, id);
+      const qtd = (r.referencias_manuais||[]).length;
+      toast(qtd ? `${qtd} referência${qtd>1?"s":""} encontrada${qtd>1?"s":""} para ${r.codigo}.` : `Nenhuma referência encontrada para ${r.codigo}.`);
+    }
+  }catch(e){}
+}
+
+async function arAnalisarLote(ids){
+  if(!ids.length) return;
+  const btn1 = $("ar-analisar-selecionados"), btn2 = $("ar-analisar-filtrados");
+  btn1.disabled = true; btn2.disabled = true;
+  try{
+    const resultado = await api("/requisitos/analisar-lote", {method:"POST", body: JSON.stringify({requisito_ids: ids})});
+    await loadRequisitos();
+    renderAnalisarRequisitos();
+    const comReferencia = (resultado.resultado||[]).filter(r=>r.encontradas>0).length;
+    toast(`${ids.length} requisito${ids.length>1?"s":""} analisado${ids.length>1?"s":""} — ${comReferencia} com referência encontrada.`);
+  }catch(e){}finally{
+    btn1.disabled = AR_SELECIONADOS.size===0; btn2.disabled = false;
+  }
+}
+
+function renderTrecho(t){
+  if(!t) return "";
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<mark>$1</mark>");
+}
+
+function abrirAnalisarDetalhe(id){
+  AR_DETALHE_ID = id;
+  preencherAnalisarDetalhe(byId(REQUISITOS, id));
+  $("overlay-analisar-detalhe").hidden = false;
+}
+function fecharAnalisarDetalhe(){
+  $("overlay-analisar-detalhe").hidden = true;
+  AR_DETALHE_ID = null;
+}
+function preencherAnalisarDetalhe(r){
+  if(!r) return;
+  $("ard-titulo").textContent = r.titulo;
+  $("ard-codigo-frente").textContent = `${r.codigo} · ${r.frente_nome||"Sem frente"}`;
+  $("ard-descricao").textContent = r.descricao || "(sem descrição cadastrada)";
+  $("ard-analisado-em").textContent = r.analisado_em ? `Última análise: ${fmtDateTime(r.analisado_em)}` : "Ainda não analisado.";
+
+  const refs = r.referencias_manuais || [];
+  $("ard-referencias").innerHTML = refs.length ? refs.map(ref => `
+    <div class="card" style="margin:0;padding:10px 12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <strong style="font-size:12.5px;">${esc(ref.manual_nome)}</strong>
+          <span class="muted mono" style="font-size:11.5px;"> · pág. ${ref.pagina}</span>
+          ${ref.manual_id ? `<a class="muted" style="font-size:11.5px;margin-left:6px;" href="${API}/manuais/${ref.manual_id}/arquivo#page=${ref.pagina}" target="_blank" rel="noopener">abrir PDF</a>` : ""}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+          ${pill(ref.origem==="busca"?"Encontrada":"Manual", ref.origem==="busca"?"accent":"ok")}
+          <button class="btn ghost small ard-ref-excluir" data-ref="${ref.id}">🗑</button>
+        </div>
+      </div>
+      ${ref.trecho ? `<div class="ref-trecho muted" style="font-size:12px;margin-top:6px;line-height:1.5;">${renderTrecho(ref.trecho)}</div>` : ""}
+    </div>`).join("") : `<div class="muted" style="font-size:12.5px;">Nenhuma referência ainda — clique em "Analisar" ou adicione uma manualmente abaixo.</div>`;
+
+  $("ard-referencias").querySelectorAll(".ard-ref-excluir").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      try{
+        await api(`/requisitos/${r.id}/referencias/${btn.dataset.ref}`, {method:"DELETE"});
+        await loadRequisitos();
+        renderAnalisarRequisitos();
+        preencherAnalisarDetalhe(byId(REQUISITOS, r.id));
+      }catch(e){}
+    });
+  });
+
+  $("ard-add-manual").innerHTML = MANUAIS.filter(m=>m.ativo!==false).map(m=>`<option value="${m.id}">${esc(m.nome)}${m.versao?" — "+esc(m.versao):""}</option>`).join("")
+    || `<option value="">Nenhum manual ativo cadastrado</option>`;
+  $("ard-add-pagina").value = "";
+  $("ard-add-trecho").value = "";
+
+  $("ard-resposta-oficial").value = r.resposta_oficial || "";
+}
+
+function wireAnalisarRequisitos(){
+  ["ar-search","ar-frente","ar-classificacao","ar-atendimento","ar-status","ar-so-sem-analise"].forEach(id=>{
+    $(id).addEventListener("input", renderAnalisarRequisitos);
+    $(id).addEventListener("change", renderAnalisarRequisitos);
+  });
+  $("ar-check-all").addEventListener("change", e=>{
+    const list = arListaFiltrada();
+    if(e.target.checked) list.forEach(r=>AR_SELECIONADOS.add(r.id));
+    else list.forEach(r=>AR_SELECIONADOS.delete(r.id));
+    renderAnalisarRequisitos();
+  });
+  $("ar-analisar-selecionados").addEventListener("click", ()=> arAnalisarLote([...AR_SELECIONADOS]));
+  $("ar-analisar-filtrados").addEventListener("click", ()=>{
+    const ids = arListaFiltrada().map(r=>r.id);
+    if(!ids.length){ toast("Nenhum requisito para analisar com os filtros atuais.", true); return; }
+    arAnalisarLote(ids);
+  });
+
+  $("ard-close").addEventListener("click", fecharAnalisarDetalhe);
+  $("ard-cancelar").addEventListener("click", fecharAnalisarDetalhe);
+  $("overlay-analisar-detalhe").addEventListener("click", e=>{ if(e.target.id==="overlay-analisar-detalhe") fecharAnalisarDetalhe(); });
+  $("ard-analisar").addEventListener("click", ()=>{ if(AR_DETALHE_ID) arAnalisarUm(AR_DETALHE_ID, true); });
+
+  $("ard-add-confirmar").addEventListener("click", async ()=>{
+    const manual_id = $("ard-add-manual").value;
+    const pagina = $("ard-add-pagina").value;
+    if(!manual_id || !pagina){ toast("Escolha o manual e informe a página.", true); return; }
+    try{
+      await api(`/requisitos/${AR_DETALHE_ID}/referencias`, {method:"POST", body: JSON.stringify({
+        manual_id, pagina: Number(pagina), trecho: $("ard-add-trecho").value.trim() || null
+      })});
+      await loadRequisitos();
+      renderAnalisarRequisitos();
+      preencherAnalisarDetalhe(byId(REQUISITOS, AR_DETALHE_ID));
+      toast("Referência adicionada.");
+    }catch(e){}
+  });
+
+  $("ard-salvar-resposta").addEventListener("click", async ()=>{
+    if(!AR_DETALHE_ID) return;
+    try{
+      await api(`/requisitos/${AR_DETALHE_ID}`, {method:"PUT", body: JSON.stringify({resposta_oficial: $("ard-resposta-oficial").value})});
+      await loadRequisitos();
+      toast("Resposta oficial salva.");
+      renderAnalisarRequisitos();
+    }catch(e){}
   });
 }
 

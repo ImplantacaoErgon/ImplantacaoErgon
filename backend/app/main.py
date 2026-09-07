@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, session
 
-from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades, relatorio_atividades
+from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades, relatorio_atividades, manuais
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 FRONTEND_DIR = os.environ.get(
@@ -103,7 +103,12 @@ REQUISITO_FIELDS = [
     "projeto_id", "codigo", "titulo", "descricao", "tipo_requisito", "modulo_origem",
     "frente_trabalho_id", "classificacao", "atendimento",
     "status", "responsavel_id", "prioridade", "cobranca", "data_levantamento", "observacoes",
+    "resposta_oficial",
 ]
+# Metadados editáveis de um manual (o arquivo em si tem rota própria de upload —
+# ver /api/manuais/<id>/arquivo — porque troca o PDF inteiro, não um campo isolado).
+MANUAL_FIELDS = ["nome", "versao", "ativo"]
+MANUAL_EXTENSOES_PERMITIDAS = {".pdf"}
 # Colunas usadas no upsert em massa (CSV e importação de documento) — sem projeto_id,
 # que é sempre passado à parte.
 REQUISITO_UPSERT_COLUMNS = [
@@ -813,7 +818,12 @@ def create_app():
             termo = args["search"].replace("'", "''")
             where.append(f"(r.codigo ILIKE '%{termo}%' OR r.titulo ILIKE '%{termo}%' OR r.descricao ILIKE '%{termo}%')")
         sql = (
-            "SELECT r.*, f.nome AS frente_nome, res.nome AS responsavel_nome "
+            "SELECT r.*, f.nome AS frente_nome, res.nome AS responsavel_nome, "
+            "COALESCE((SELECT json_agg(json_build_object("
+            "'id', rrm.id, 'manual_id', rrm.manual_id, 'manual_nome', rrm.manual_nome, "
+            "'pagina', rrm.pagina, 'trecho', rrm.trecho, 'relevancia', rrm.relevancia, 'origem', rrm.origem"
+            ") ORDER BY rrm.relevancia DESC NULLS LAST, rrm.criado_em) "
+            "FROM requisito_referencia_manual rrm WHERE rrm.requisito_id = r.id), '[]') AS referencias_manuais "
             "FROM requisitos_tr r LEFT JOIN frentes_trabalho f ON f.id = r.frente_trabalho_id "
             "LEFT JOIN recursos res ON res.id = r.responsavel_id"
         )
@@ -1026,6 +1036,171 @@ def create_app():
     def unlink_atividade_requisito(id, rid):
         db.execute(
             f"DELETE FROM atividade_requisito WHERE atividade_id = {db.q(id)} AND requisito_id = {db.q(rid)}"
+        )
+        return "", 204
+
+    # ------------------------------------------- manuais do sistema (globais)
+    @app.get("/api/manuais")
+    def list_manuais():
+        sql = f"SELECT {manuais.MANUAL_COLUNAS_LEVES} FROM manuais ORDER BY nome"
+        return jsonify(db.fetch_all(sql))
+
+    @app.post("/api/manuais")
+    def upload_manual():
+        """Cadastra um manual novo: recebe o PDF (multipart), extrai o texto
+        por página (ver manuais.extrair_paginas_pdf) e já grava tudo — o
+        manual só fica pesquisável a partir daqui, não precisa de um passo
+        separado de "processar"."""
+        nome = (request.form.get("nome") or "").strip()
+        versao = (request.form.get("versao") or "").strip() or None
+        file = request.files.get("file")
+        if not nome or not file or not file.filename:
+            return jsonify({"erro": "Nome e arquivo PDF são obrigatórios."}), 400
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in MANUAL_EXTENSOES_PERMITIDAS:
+            return jsonify({"erro": "Formato não suportado. Envie um arquivo PDF."}), 400
+        conteudo = file.read()
+        if len(conteudo) > manuais.TAMANHO_MAXIMO_BYTES:
+            return jsonify({"erro": "Arquivo muito grande (máximo 40 MB)."}), 400
+        try:
+            paginas = manuais.extrair_paginas_pdf(conteudo)
+        except manuais.ManualError as e:
+            return jsonify({"erro": str(e)}), 400
+        dados_b64 = base64.b64encode(conteudo).decode("ascii")
+        manual = db.execute_returning_one(
+            "INSERT INTO manuais (nome, versao, arquivo_nome, arquivo_mime, arquivo_dados, tamanho_bytes, paginas_total) "
+            f"VALUES ({db.q(nome)}, {db.q(versao)}, {db.q(file.filename)}, 'application/pdf', "
+            f"{db.q(dados_b64)}, {db.q(len(conteudo))}, {db.q(len(paginas))}) "
+            f"RETURNING {manuais.MANUAL_COLUNAS_LEVES}"
+        )
+        if paginas:
+            values_sql = ", ".join(
+                "(" + db.q(manual["id"]) + ", " + db.q(p["numero_pagina"]) + ", " + db.q(p["texto"]) + ")"
+                for p in paginas
+            )
+            db.execute(
+                f"INSERT INTO manual_paginas (manual_id, numero_pagina, texto) VALUES {values_sql}",
+                timeout=120,
+            )
+        return jsonify(manual), 201
+
+    @app.put("/api/manuais/<id>")
+    def update_manual(id):
+        row = patch_row("manuais", id, request.get_json(force=True), MANUAL_FIELDS)
+        if not row:
+            abort(404)
+        row = {k: v for k, v in row.items() if k != "arquivo_dados"}
+        return jsonify(row)
+
+    @app.delete("/api/manuais/<id>")
+    def delete_manual(id):
+        return delete_row("manuais", id)
+
+    @app.get("/api/manuais/<id>/arquivo")
+    def get_manual_arquivo(id):
+        """Serve o PDF do manual a partir do base64 gravado no banco (mesmo
+        princípio do logo — sem depender de disco local do container)."""
+        row = db.fetch_one(f"SELECT arquivo_nome, arquivo_mime, arquivo_dados FROM manuais WHERE id = {db.q(id)}")
+        if not row or not row.get("arquivo_dados"):
+            abort(404)
+        conteudo = base64.b64decode(row["arquivo_dados"])
+        return send_file(io.BytesIO(conteudo), mimetype=row.get("arquivo_mime") or "application/pdf",
+                          download_name=row.get("arquivo_nome") or "manual.pdf")
+
+    # -------------------------------------- analisar requisitos x manuais
+    @app.post("/api/requisitos/<id>/analisar")
+    def analisar_requisito(id):
+        """Roda a busca por palavra-chave (ver app/manuais.py — sem IA) do
+        texto do requisito contra as páginas dos manuais ativos, e GRAVA os
+        candidatos encontrados como novas referências (substitui as
+        referências de origem='busca' anteriores deste requisito — as
+        adicionadas à mão, origem='manual', não são mexidas)."""
+        req = db.fetch_one(f"SELECT titulo, descricao FROM requisitos_tr WHERE id = {db.q(id)}")
+        if not req:
+            abort(404)
+        texto = f"{req.get('titulo') or ''}\n{req.get('descricao') or ''}"
+        referencias = manuais.buscar_referencias(texto)
+        db.execute(f"DELETE FROM requisito_referencia_manual WHERE requisito_id = {db.q(id)} AND origem = 'busca'")
+        if referencias:
+            values_sql = ", ".join(
+                "(" + ", ".join([
+                    db.q(id), db.q(r["manual_id"]), db.q(r["manual_nome"]),
+                    db.q(r["pagina"]), db.q(r["trecho"]), db.q(r["relevancia"]), "'busca'",
+                ]) + ")"
+                for r in referencias
+            )
+            db.execute(
+                "INSERT INTO requisito_referencia_manual "
+                "(requisito_id, manual_id, manual_nome, pagina, trecho, relevancia, origem) "
+                f"VALUES {values_sql}"
+            )
+        db.execute(f"UPDATE requisitos_tr SET analisado_em = now() WHERE id = {db.q(id)}")
+        referencias_salvas = db.fetch_all(
+            "SELECT id, manual_id, manual_nome, pagina, trecho, relevancia, origem "
+            f"FROM requisito_referencia_manual WHERE requisito_id = {db.q(id)} "
+            "ORDER BY relevancia DESC NULLS LAST, criado_em"
+        )
+        return jsonify({"referencias": referencias_salvas, "encontradas": len(referencias)})
+
+    @app.post("/api/requisitos/analisar-lote")
+    def analisar_requisitos_lote():
+        """Mesma análise de analisar_requisito(), mas para vários requisitos
+        de uma vez (botão "Analisar todos" da tela Analisar Requisitos).
+        Roda um por um (não é pesado — é só SQL local, sem chamada externa),
+        e devolve um resumo por requisito pro front-end mostrar o progresso."""
+        body = request.get_json(force=True) or {}
+        ids = [i for i in (body.get("requisito_ids") or []) if i]
+        if not ids:
+            return jsonify({"erro": "Informe ao menos um requisito."}), 400
+        resultado = []
+        for rid in ids:
+            req = db.fetch_one(f"SELECT titulo, descricao FROM requisitos_tr WHERE id = {db.q(rid)}")
+            if not req:
+                continue
+            texto = f"{req.get('titulo') or ''}\n{req.get('descricao') or ''}"
+            referencias = manuais.buscar_referencias(texto)
+            db.execute(f"DELETE FROM requisito_referencia_manual WHERE requisito_id = {db.q(rid)} AND origem = 'busca'")
+            if referencias:
+                values_sql = ", ".join(
+                    "(" + ", ".join([
+                        db.q(rid), db.q(r["manual_id"]), db.q(r["manual_nome"]),
+                        db.q(r["pagina"]), db.q(r["trecho"]), db.q(r["relevancia"]), "'busca'",
+                    ]) + ")"
+                    for r in referencias
+                )
+                db.execute(
+                    "INSERT INTO requisito_referencia_manual "
+                    "(requisito_id, manual_id, manual_nome, pagina, trecho, relevancia, origem) "
+                    f"VALUES {values_sql}"
+                )
+            db.execute(f"UPDATE requisitos_tr SET analisado_em = now() WHERE id = {db.q(rid)}")
+            resultado.append({"requisito_id": rid, "encontradas": len(referencias)})
+        return jsonify({"resultado": resultado})
+
+    @app.post("/api/requisitos/<id>/referencias")
+    def add_referencia_manual(id):
+        """Adiciona uma referência à mão (origem='manual') — usado quando o
+        consultor sabe onde está a resposta, mas a busca automática não achou
+        (ou achou algo irrelevante)."""
+        data = request.get_json(force=True) or {}
+        manual_id = data.get("manual_id")
+        pagina = data.get("pagina")
+        if not (manual_id and pagina):
+            return jsonify({"erro": "Manual e página são obrigatórios."}), 400
+        manual = db.fetch_one(f"SELECT nome FROM manuais WHERE id = {db.q(manual_id)}")
+        if not manual:
+            return jsonify({"erro": "Manual não encontrado."}), 404
+        row = db.execute_returning_one(
+            "INSERT INTO requisito_referencia_manual (requisito_id, manual_id, manual_nome, pagina, trecho, origem) "
+            f"VALUES ({db.q(id)}, {db.q(manual_id)}, {db.q(manual['nome'])}, {db.q(pagina)}, "
+            f"{db.q(data.get('trecho'))}, 'manual') RETURNING *"
+        )
+        return jsonify(row), 201
+
+    @app.delete("/api/requisitos/<id>/referencias/<ref_id>")
+    def delete_referencia_manual(id, ref_id):
+        db.execute(
+            f"DELETE FROM requisito_referencia_manual WHERE id = {db.q(ref_id)} AND requisito_id = {db.q(id)}"
         )
         return "", 204
 
