@@ -355,6 +355,8 @@ CREATE TABLE requisitos_tr (
   cobranca        cobranca_enum NOT NULL DEFAULT 'N/A',
   data_levantamento date,
   observacoes     text,
+  resposta_oficial text,             -- resposta do consultor no processo de Análise TR x Manuais (complementa as referências encontradas)
+  analisado_em    timestamptz,       -- última vez que a busca por referência nos manuais foi executada pra este requisito
   criado_em       timestamptz NOT NULL DEFAULT now(),
   atualizado_em   timestamptz NOT NULL DEFAULT now(),
   UNIQUE (projeto_id, codigo)
@@ -944,6 +946,64 @@ Todas as rotas ficam sob o prefixo `/api/`, respondem e recebem JSON (exceto dow
 ## 11. Um sistema em evolução
 
 Este documento técnico é atualizado a cada rodada de desenvolvimento que altere o banco de dados, a arquitetura ou uma convenção do projeto — a versão e a data no topo indicam a última revisão. Para o histórico detalhado, rodada a rodada, de cada decisão técnica tomada, consulte a documentação de gestão técnica do projeto (mantida à parte, fora do próprio sistema).$doc$);
+
+-- ============================================================================
+-- 20. MANUAIS DO SISTEMA
+-- ============================================================================
+-- Catálogo GLOBAL de manuais do Ergon (não é por projeto — os mesmos manuais
+-- valem pra qualquer implantação). Cada manual é um PDF guardado em base64
+-- direto no banco (mesmo padrão já usado pra logo/documentação — o Render de
+-- produção não tem disco persistente entre deploys, então arquivo em disco
+-- não sobrevive). O texto de cada página é extraído no upload e guardado à
+-- parte em manual_paginas, pra viabilizar a busca por palavra-chave.
+CREATE TABLE manuais (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome            text NOT NULL,
+  versao          text,
+  arquivo_nome    text NOT NULL,
+  arquivo_mime    text NOT NULL DEFAULT 'application/pdf',
+  arquivo_dados   text NOT NULL,             -- conteúdo do PDF em base64
+  tamanho_bytes   integer NOT NULL,
+  paginas_total   integer NOT NULL DEFAULT 0,
+  ativo           boolean NOT NULL DEFAULT true,
+  enviado_em      timestamptz NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE manuais IS 'Catálogo global (não por projeto) dos manuais do sistema Ergon, usados na análise de Requisitos TR x Manuais (Configurações > Manuais do Sistema).';
+
+CREATE TABLE manual_paginas (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  manual_id       uuid NOT NULL REFERENCES manuais(id) ON DELETE CASCADE,
+  numero_pagina   integer NOT NULL,
+  texto           text NOT NULL DEFAULT '',
+  busca           tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED,
+  UNIQUE (manual_id, numero_pagina)
+);
+CREATE INDEX idx_manual_paginas_busca ON manual_paginas USING GIN (busca);
+COMMENT ON TABLE manual_paginas IS 'Texto extraído por página de cada manual (via pypdf, sem OCR), usado na busca textual (tsvector/ts_rank) da tela Analisar Requisitos.';
+
+-- ============================================================================
+-- 21. REFERÊNCIAS DE REQUISITOS TR NOS MANUAIS
+-- ============================================================================
+-- Resultado (revisável) da análise "Analisar Requisitos": cada linha é uma
+-- referência (manual + página + trecho) associada a um requisito. N:N porque
+-- um requisito pode ter várias referências e nada impede duas referências
+-- apontarem pro mesmo manual em páginas diferentes. `manual_nome` fica
+-- congelado no momento da referência (não só via FK) pra a citação continuar
+-- fazendo sentido mesmo se o manual de origem for excluído depois — por isso
+-- manual_id usa ON DELETE SET NULL, não CASCADE.
+CREATE TABLE requisito_referencia_manual (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  requisito_id    uuid NOT NULL REFERENCES requisitos_tr(id) ON DELETE CASCADE,
+  manual_id       uuid REFERENCES manuais(id) ON DELETE SET NULL,
+  manual_nome     text NOT NULL,
+  pagina          integer NOT NULL,
+  trecho          text,
+  relevancia      real,
+  origem          text NOT NULL DEFAULT 'busca' CHECK (origem IN ('busca', 'manual')),
+  criado_em       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_requisito_referencia_requisito ON requisito_referencia_manual(requisito_id);
+COMMENT ON TABLE requisito_referencia_manual IS 'Referências (manual + página + trecho) encontradas ou cadastradas manualmente pra cada requisito, na tela Analisar Requisitos. origem=busca (achada pela busca por palavra-chave) ou manual (adicionada à mão pelo consultor).';
 
 -- ============================================================================
 -- Views de apoio a relatórios
