@@ -114,6 +114,14 @@ REQUISITO_UPSERT_COLUMNS = [
 RECURSO_FIELDS = ["nome", "tipo_vinculo", "empresa", "cargo", "email", "telefone", "controla_horas", "ativo"]
 ETAPA_FIELDS = ["projeto_id", "numero", "nome", "descricao", "data_inicio_prev", "data_fim_prev"]
 FRENTE_FIELDS = ["projeto_id", "nome", "descricao", "cor_hex", "ordem", "ativo"]
+# `util` não faz parte dos campos editáveis por aqui (Configurações > Calendário
+# de Feriados) de propósito: toda linha criada por essa tela é sempre um feriado
+# (exceção não-útil) — o valor default da coluna (FALSE) já cobre isso. Um
+# `util=TRUE` cadastrado manualmente no banco não teria efeito nenhum no CPM/
+# "Minhas atividades" hoje (sábado/domingo já são excluídos antes de olhar essa
+# tabela — ver cpm.py/_business_day_offset e minhas_atividades._dias_uteis_periodo),
+# então não vale expor esse valor como opção só pra confundir o usuário.
+CALENDARIO_FIELDS = ["projeto_id", "data", "descricao"]
 TIPO_ATIVIDADE_FIELDS = ["nome", "descricao", "ordem", "ativo"]
 MARCO_FIELDS = ["projeto_id", "etapa_id", "nome", "descricao", "data_prevista", "data_real", "origem_importacao_id"]
 RISCO_FIELDS = ["projeto_id", "descricao", "categoria", "probabilidade", "impacto", "mitigacao",
@@ -1405,6 +1413,86 @@ def create_app():
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True, download_name=nome_arquivo,
         )
+
+    # ------------------------------------------------- calendário de feriados
+    # Configurações > Calendário de Feriados: exceções de dia útil por projeto
+    # (tabela calendario_util, já existia desde as primeiras rodadas — usada pelo
+    # CPM e por "Minhas atividades" para pular feriados/recessos ao distribuir
+    # dias úteis — mas até agora não tinha nenhuma tela nem rota própria).
+    @app.get("/api/calendario")
+    def list_calendario():
+        pid = request.args.get("projeto_id")
+        sql = "SELECT * FROM calendario_util"
+        if pid:
+            sql += f" WHERE projeto_id = {db.q(pid)}"
+        sql += " ORDER BY data"
+        return jsonify(db.fetch_all(sql))
+
+    @app.post("/api/calendario")
+    def create_calendario():
+        data = request.get_json(force=True)
+        if not (data.get("projeto_id") and data.get("data")):
+            return jsonify({"erro": "Projeto e data são obrigatórios."}), 400
+        return jsonify(insert_row("calendario_util", data, CALENDARIO_FIELDS)), 201
+
+    @app.put("/api/calendario/<id>")
+    def update_calendario(id):
+        row = patch_row("calendario_util", id, request.get_json(force=True), CALENDARIO_FIELDS)
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.delete("/api/calendario/<id>")
+    def delete_calendario(id):
+        return delete_row("calendario_util", id)
+
+    @app.post("/api/calendario/duplicar")
+    def duplicar_calendario():
+        """Copia os feriados de um projeto "modelo" para um ou mais projetos
+        destino — pensado pro caso de vários projetos em cidades/estados
+        diferentes, que têm o feriado nacional em comum mas precisam de
+        feriados estaduais/municipais próprios além dele. Segue a mesma
+        filosofia já usada na reimportação de cronograma: só ADICIONA datas que
+        o destino ainda não tem, nunca sobrescreve nem remove um feriado que o
+        destino já tinha cadastrado por conta própria — datas repetidas
+        (mesmo projeto_id + data já existente) são só contadas e ignoradas."""
+        body = request.get_json(force=True) or {}
+        origem_id = body.get("projeto_origem_id")
+        destino_ids = [d for d in (body.get("projetos_destino_ids") or []) if d and d != origem_id]
+        if not origem_id or not destino_ids:
+            return jsonify({"erro": "Informe o projeto de origem e ao menos um projeto de destino."}), 400
+
+        origem_feriados = db.fetch_all(
+            f"SELECT data, util, descricao FROM calendario_util WHERE projeto_id = {db.q(origem_id)}"
+        )
+        if not origem_feriados:
+            return jsonify({"erro": "O projeto de origem não tem nenhum feriado cadastrado."}), 400
+
+        resultado = []
+        for destino_id in destino_ids:
+            existentes = {
+                r["data"] for r in db.fetch_all(
+                    f"SELECT data FROM calendario_util WHERE projeto_id = {db.q(destino_id)}"
+                )
+            }
+            novos = [f for f in origem_feriados if f["data"] not in existentes]
+            if novos:
+                values_sql = ", ".join(
+                    "(" + db.q(destino_id) + ", " + db.q(f["data"]) + ", " + db.q(f["util"]) + ", " + db.q(f.get("descricao")) + ")"
+                    for f in novos
+                )
+                db.execute(
+                    f"INSERT INTO calendario_util (projeto_id, data, util, descricao) VALUES {values_sql} "
+                    "ON CONFLICT (projeto_id, data) DO NOTHING"
+                )
+            projeto = db.fetch_one(f"SELECT sigla, nome FROM projetos WHERE id = {db.q(destino_id)}")
+            resultado.append({
+                "projeto_id": destino_id,
+                "projeto_nome": (projeto or {}).get("sigla") or (projeto or {}).get("nome") or "—",
+                "copiados": len(novos),
+                "ja_existentes": len(origem_feriados) - len(novos),
+            })
+        return jsonify({"resultado": resultado})
 
     # -------------------------------------------------------------------- cpm
     @app.post("/api/cpm/recalcular")

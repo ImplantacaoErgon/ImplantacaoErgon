@@ -557,18 +557,20 @@
   <!-- ============ CONFIGURAÇÕES ============ -->
   <section class="view" id="view-configuracoes">
     <h2 class="view-title">Configurações</h2>
-    <div class="view-sub">Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
+    <div class="view-sub">Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários, calendário de feriados e parâmetros do site.</div>
     <div class="modal-tabs" id="cfg-tabs" style="border:none;padding:0;margin-bottom:16px;">
       <button data-cfg="projeto" class="active">Dados do Projeto</button>
       <button data-cfg="responsaveis">Recursos</button>
       <button data-cfg="etapas">Etapas</button>
       <button data-cfg="frentes">Frentes de Trabalho</button>
       <button data-cfg="tipos">Tipos de Atividade Elementar</button>
+      <button data-cfg="calendario">📅 Calendário de Feriados</button>
       <button data-cfg="usuarios">Usuários</button>
       <button data-cfg="parametros">Parâmetros</button>
       <button data-cfg="documentacao">📄 Documentação</button>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;" id="cfg-add-wrap">
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;" id="cfg-add-wrap">
+      <button class="btn small ghost" id="cfg-calendario-duplicar" hidden>⧉ Duplicar feriados para outro(s) projeto(s)</button>
       <button class="btn small" id="cfg-add">+ Novo</button>
     </div>
     <div class="table-wrap" id="cfg-table-wrap">
@@ -684,6 +686,26 @@
     <div class="modal-foot">
       <button class="btn danger" id="cfg-delete" style="visibility:hidden;">Excluir</button>
       <div style="display:flex;gap:8px;"><button class="btn secondary" id="cfg-cancel">Cancelar</button><button class="btn" id="cfg-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: DUPLICAR CALENDÁRIO DE FERIADOS ================= -->
+<div class="overlay" id="overlay-duplicar-calendario" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2>Duplicar feriados para outro(s) projeto(s)</h2><button class="btn ghost" id="dupcal-close">✕</button></div>
+    <div class="modal-body">
+      <div class="muted" style="margin-bottom:12px;line-height:1.5;">
+        Copia todos os feriados/exceções cadastrados aqui em <strong id="dupcal-origem-nome">—</strong> para o(s)
+        projeto(s) marcado(s) abaixo. Só adiciona as datas que o projeto de destino ainda não tem — nunca
+        sobrescreve nem remove um feriado que ele já tinha cadastrado por conta própria.
+      </div>
+      <div id="dupcal-lista" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+      <div class="muted" id="dupcal-vazio" hidden style="margin-top:8px;">Não há outro projeto cadastrado para receber uma cópia.</div>
+    </div>
+    <div class="modal-foot">
+      <div></div>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="dupcal-cancel">Cancelar</button><button class="btn" id="dupcal-confirmar">Duplicar</button></div>
     </div>
   </div>
 </div>
@@ -1111,6 +1133,7 @@ const SOFT_VAR = {ok:"var(--ok-soft)",warn:"var(--warn-soft)",accent:"var(--acce
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); if(isNaN(d)) return "—"; return d.toLocaleDateString('pt-BR'); }
 function fmtDateTime(iso){ if(!iso) return "—"; const d=new Date(iso); if(isNaN(d)) return "—"; return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+function diaSemanaLabel(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00:00"); if(isNaN(d)) return "—"; const s = d.toLocaleDateString('pt-BR', {weekday:'long'}); return s.charAt(0).toUpperCase()+s.slice(1); }
 function pill(text,kind){ return `<span class="pill" style="color:${COLOR_VAR[kind]||COLOR_VAR.faint};background:${SOFT_VAR[kind]||SOFT_VAR.faint};"><span class="dot" style="background:${COLOR_VAR[kind]||COLOR_VAR.faint};"></span>${esc(text)}</span>`; }
 function toast(msg, isErr){
   const el=document.createElement("div"); el.className="toast"; el.textContent=msg;
@@ -1163,7 +1186,7 @@ async function chamarAuthApi(path, body){
 // ---------------- estado global ----------------
 let USUARIO_LOGADO = null;
 let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
-let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[];
+let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[], CALENDARIO=[];
 let editingAtividadeId=null, editingRequisitoId=null;
 let MA_DATA_REF=new Date(), MA_GRADE=null; // "Minhas atividades" — data de referência da semana mostrada e último retorno do servidor
 const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
@@ -1226,8 +1249,9 @@ async function trocarProjeto(id){
 // pra evitar salvar algo editado no projeto anterior como se fosse do novo.
 async function recarregarDadosDoProjeto(){
   closeAtividadeModal(); closeRequisitoModal();
-  [ETAPAS, FRENTES] = await Promise.all([
-    api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`)
+  [ETAPAS, FRENTES, CALENDARIO] = await Promise.all([
+    api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
+    api(`/calendario?projeto_id=${PROJETO.id}`)
   ]);
   fillStaticSelects();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
@@ -1414,9 +1438,10 @@ async function iniciarApp(){
 }
 
 async function afterProjetoReady(){
-  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, PARAMETROS] = await Promise.all([
+  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, PARAMETROS, CALENDARIO] = await Promise.all([
     api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
-    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`), api(`/parametros`)
+    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`), api(`/parametros`),
+    api(`/calendario?projeto_id=${PROJETO.id}`)
   ]);
   aplicarMarcaNoTopo();
   fillStaticSelects();
@@ -3001,6 +3026,19 @@ const CONFIG_ENTIDADES = {
       {chave:"ativo", rotulo:"Ativo", tipo:"checkbox", padrao:true},
     ],
   },
+  calendario: {
+    tituloSingular: "Feriado", tituloPlural: "Calendário de Feriados", endpoint: "calendario", comProjeto: true,
+    ordenar: r => r.data,
+    colunas: [
+      {chave:"data", rotulo:"Data", render: fmtDate},
+      {chave:"data", rotulo:"Dia da semana", render: diaSemanaLabel},
+      {chave:"descricao", rotulo:"Descrição"},
+    ],
+    campos: [
+      {chave:"data", rotulo:"Data", tipo:"date", obrigatorio:true},
+      {chave:"descricao", rotulo:"Descrição", tipo:"text", placeholder:"Ex: Feriado municipal, Recesso de fim de ano, Ponto facultativo..."},
+    ],
+  },
   usuarios: {
     tituloSingular: "Usuário", tituloPlural: "Usuários", endpoint: "usuarios", comProjeto: false,
     // Sem criação nem exclusão por aqui: o cadastro é feito pelo autocadastro
@@ -3034,7 +3072,7 @@ let cfgAbaAtual = "projeto";
 let cfgEditandoId = null;
 
 function cfgDados(aba){
-  return {responsaveis: RECURSOS, etapas: ETAPAS, frentes: FRENTES, tipos: TIPOS, usuarios: USUARIOS}[aba];
+  return {responsaveis: RECURSOS, etapas: ETAPAS, frentes: FRENTES, tipos: TIPOS, usuarios: USUARIOS, calendario: CALENDARIO}[aba];
 }
 
 function wireConfiguracoes(){
@@ -3063,6 +3101,48 @@ function wireConfiguracoes(){
   });
   $("doc-voltar").addEventListener("click", fecharDocumentoDetalhe);
   $("doc-imprimir").addEventListener("click", ()=> window.print());
+  $("cfg-calendario-duplicar").addEventListener("click", abrirDuplicarCalendarioModal);
+  $("dupcal-close").addEventListener("click", fecharDuplicarCalendarioModal);
+  $("dupcal-cancel").addEventListener("click", fecharDuplicarCalendarioModal);
+  $("overlay-duplicar-calendario").addEventListener("click", e=>{ if(e.target.id==="overlay-duplicar-calendario") fecharDuplicarCalendarioModal(); });
+  $("dupcal-confirmar").addEventListener("click", confirmarDuplicarCalendario);
+}
+
+// ================= Duplicar feriados (Configurações > Calendário de Feriados) =================
+// Copia os feriados do projeto ativo para um ou mais projetos escolhidos numa
+// lista de checkboxes — útil quando dois projetos ficam em cidades/estados
+// diferentes e têm calendários de feriado parecidos, mas não idênticos. A
+// cópia em si (só aditiva, nunca sobrescreve o que o destino já tinha) é
+// feita inteira no backend (POST /api/calendario/duplicar) numa chamada só.
+function abrirDuplicarCalendarioModal(){
+  if(!CALENDARIO.length){ toast("Não há nenhum feriado cadastrado neste projeto para duplicar.", true); return; }
+  $("dupcal-origem-nome").textContent = PROJETO.sigla || PROJETO.nome;
+  const outros = PROJETOS.filter(p=>p.id !== PROJETO.id);
+  $("dupcal-vazio").hidden = outros.length > 0;
+  $("dupcal-lista").innerHTML = outros.map(p => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+      <input type="checkbox" value="${p.id}" style="width:16px;height:16px;">
+      <span>${esc(p.sigla ? `${p.sigla} — ${p.nome}` : p.nome)}</span>
+    </label>`).join("");
+  $("overlay-duplicar-calendario").hidden = false;
+}
+function fecharDuplicarCalendarioModal(){ $("overlay-duplicar-calendario").hidden = true; }
+
+async function confirmarDuplicarCalendario(){
+  const destinoIds = [...$("dupcal-lista").querySelectorAll("input[type=checkbox]:checked")].map(el=>el.value);
+  if(!destinoIds.length){ toast("Marque ao menos um projeto de destino.", true); return; }
+  $("dupcal-confirmar").disabled = true;
+  try{
+    const r = await api("/calendario/duplicar", {
+      method: "POST",
+      body: JSON.stringify({ projeto_origem_id: PROJETO.id, projetos_destino_ids: destinoIds }),
+    });
+    const resumo = (r.resultado || []).map(x => `${x.projeto_nome}: ${x.copiados} novo(s)${x.ja_existentes ? `, ${x.ja_existentes} já existente(s)` : ""}`).join(" · ");
+    toast(`Feriados duplicados. ${resumo}`);
+    fecharDuplicarCalendarioModal();
+    await reloadConfigEntidades();
+  }catch(e){}
+  $("dupcal-confirmar").disabled = false;
 }
 
 // Dados do Projeto (16ª rodada): resumo somente-leitura na aba de
@@ -3096,6 +3176,7 @@ function renderConfigTable(){
   const def = CONFIG_ENTIDADES[cfgAbaAtual];
   $("cfg-add").style.display = def.semCriar ? "none" : "";
   $("cfg-add").textContent = `+ Novo(a) ${def.tituloSingular.toLowerCase()}`;
+  $("cfg-calendario-duplicar").hidden = cfgAbaAtual !== "calendario";
   $("cfg-thead").innerHTML = `<tr>${def.colunas.map(c=>`<th>${esc(c.rotulo)}</th>`).join("")}</tr>`;
   const linhas = [...cfgDados(cfgAbaAtual)].sort((a,b)=>{
     const va=def.ordenar(a), vb=def.ordenar(b);
@@ -3268,9 +3349,9 @@ async function saveConfigItem(){
 }
 
 async function reloadConfigEntidades(){
-  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS] = await Promise.all([
+  [ETAPAS, FRENTES, TIPOS, RECURSOS, USUARIOS, CALENDARIO] = await Promise.all([
     api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
-    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`)
+    api(`/tipos-atividade`), api(`/recursos`), api(`/usuarios`), api(`/calendario?projeto_id=${PROJETO.id}`)
   ]);
   fillStaticSelects();
   renderConfigTable();
