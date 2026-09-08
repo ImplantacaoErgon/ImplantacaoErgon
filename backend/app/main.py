@@ -89,7 +89,7 @@ ATIVIDADE_FIELDS = [
     "codigo_wbs", "origem_importacao_id", "nome", "descricao",
     "prazo_horas", "horas_realizadas", "dtini_prev", "dtfim_prev",
     "dtini_real", "dtfim_real", "percentual_concluido", "status", "prioridade", "observacoes",
-    "eh_atividade_master",
+    "eh_atividade_master", "eh_entregavel",
 ]
 RELATO_FIELDS = [
     "autor_id", "autor_nome", "texto", "eh_pendencia",

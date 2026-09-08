@@ -844,6 +844,12 @@
             ★ Atividade master (entregável mestre do projeto — usada na previsão do Relatório Executivo)
           </label>
         </div>
+        <div class="field full" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="at-entregavel" style="width:auto;">
+          <label for="at-entregavel" style="margin:0;" title="Entregável atrelado a faturamento (ex: Aceite da Migração, Aceite da customização Bloco 1). Valores de faturamento ficam para uma tela própria futura — aqui só marca que esta atividade é um entregável.">
+            💰 Entregável (atrelado a faturamento)
+          </label>
+        </div>
 
         <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço"></div>
         <div class="field"><label>Horas realizadas</label><input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas"></div>
@@ -1882,7 +1888,7 @@ function renderAtividadesTable(list){
   $("atividades-tbody").innerHTML = list.map(a=>`
     <tr class="clickable" data-id="${a.id}">
       <td class="mono">${esc(a.codigo_wbs||"—")}</td>
-      <td>${a.eh_atividade_master?`<span title="Atividade master (entregável mestre do projeto)">★</span> `:""}${esc(a.nome)}${a.requisito_tr_codigo?`<div class="muted" style="font-size:11px;">TR: ${esc(a.requisito_tr_codigo)}</div>`:""}</td>
+      <td>${a.eh_atividade_master?`<span title="Atividade master (entregável mestre do projeto)">★</span> `:""}${a.eh_entregavel?`<span title="Entregável (atrelado a faturamento)">💰</span> `:""}${esc(a.nome)}${a.requisito_tr_codigo?`<div class="muted" style="font-size:11px;">TR: ${esc(a.requisito_tr_codigo)}</div>`:""}</td>
       <td>${a.etapa_numero}.${esc(a.frente_nome)}</td>
       <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}${a.atrasada?" "+pill("Atrasada","danger"):""}</td>
       <td class="mono">${fmtDate(a.dtini_prev)}</td>
@@ -2275,6 +2281,7 @@ function openAtividadeModal(atividade){
   $("at-prioridade").value = atividade?.prioridade || "Média";
   $("at-percentual").value = atividade?.percentual_concluido ?? 0;
   $("at-master").checked = !!atividade?.eh_atividade_master;
+  $("at-entregavel").checked = !!atividade?.eh_entregavel;
   $("at-prazo").value = atividade?.prazo_horas ?? "";
   $("at-horas-real").value = atividade?.horas_realizadas ?? "";
   $("at-dtini-prev").value = atividade?.dtini_prev || "";
@@ -2304,7 +2311,7 @@ async function saveAtividade(){
     requisito_tr_id: $("at-requisito-tr").value || null,
     status: $("at-status").value, prioridade: $("at-prioridade").value,
     percentual_concluido: Number($("at-percentual").value || 0), prazo_horas: $("at-prazo").value ? Number($("at-prazo").value) : null,
-    eh_atividade_master: $("at-master").checked,
+    eh_atividade_master: $("at-master").checked, eh_entregavel: $("at-entregavel").checked,
     horas_realizadas: $("at-horas-real").value ? Number($("at-horas-real").value) : null,
     dtini_prev: $("at-dtini-prev").value || null, dtfim_prev: $("at-dtfim-prev").value || null,
     dtini_real: $("at-dtini-real").value || null, dtfim_real: $("at-dtfim-real").value || null,

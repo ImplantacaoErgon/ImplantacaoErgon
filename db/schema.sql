@@ -202,6 +202,11 @@ CREATE TABLE atividades (
   eh_atividade_master boolean NOT NULL DEFAULT false,  -- marca esta atividade como um dos entregáveis mestres do
                                        -- projeto (ex: "Folha definitiva") — usado pelo Relatório Executivo (IA)
                                        -- para calcular previsão de conclusão e priorizar o diagnóstico
+  eh_entregavel     boolean NOT NULL DEFAULT false,  -- marca a atividade como um entregável atrelado a faturamento
+                                       -- (ex: "Aceite da Migração", "Aceite da customização Bloco 1"). Independente
+                                       -- de eh_atividade_master: um entregável faturável não é necessariamente um
+                                       -- marco mestre do projeto (migração 017). Valores de faturamento ficam para
+                                       -- uma tela própria futura — aqui só marca "isto é um entregável".
   criado_em         timestamptz NOT NULL DEFAULT now(),
   atualizado_em     timestamptz NOT NULL DEFAULT now(),
 
@@ -217,6 +222,7 @@ CREATE INDEX idx_atividades_dtfim_prev ON atividades(dtfim_prev);
 CREATE INDEX idx_atividades_dtini_prev ON atividades(dtini_prev);
 CREATE INDEX idx_atividades_origem_importacao ON atividades(projeto_id, origem_importacao_id);
 CREATE INDEX idx_atividades_master ON atividades(projeto_id) WHERE eh_atividade_master = true;
+CREATE INDEX idx_atividades_entregavel ON atividades(projeto_id) WHERE eh_entregavel = true;
 CREATE TRIGGER trg_atividades_atualizado_em BEFORE UPDATE ON atividades
   FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
 COMMENT ON TABLE atividades IS 'Atividade elementar do cronograma. atividade_pai_id permite desdobrar uma atividade em subatividades quando necessário (WBS).';
