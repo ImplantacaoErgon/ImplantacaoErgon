@@ -12,7 +12,7 @@ DECISÕES DE PRODUTO (combinadas com o usuário antes de implementar):
 - Reimportar SEMPRE atualiza o projeto atual — nunca cria um projeto novo.
   Atividades e marcos já existentes são casados com a linha correspondente
   da planilha e ATUALIZADOS (nome, datas previstas, horas previstas,
-  percentual concluído); campos manuais (responsável, tipo de atividade,
+  percentual concluído); campos manuais (recurso, tipo de atividade,
   status "Bloqueada"/"Cancelada", observações, item do TR) NUNCA são
   sobrescritos por uma reimportação.
 - O casamento entre a planilha e uma atividade já existente usa, nesta
@@ -767,7 +767,16 @@ def confirmar(token, projeto_id, mapeamento_etapas, mapeamento_frentes):
     criadas = atualizadas = horas_aproximadas = 0
     erros = []
     hoje = datetime.now().date().isoformat()
-    ordem_status = {"Não iniciada": 0, "Em andamento": 1, "Concluída": 2}
+    # As 3 novas variantes de conclusão (29ª rodada/migração 020) ficam no mesmo rank 2
+    # de "Concluída" — sem isso, uma atividade já classificada como "Concluída com
+    # atraso" (rank ausente = 0 por padrão) seria REBAIXADA pra "Concluída" simples
+    # (rank 2 > 0) só porque a planilha reimportada também mostra 100%, perdendo a
+    # classificação de prazo/esforço já calculada pela tela.
+    ordem_status = {
+        "Não iniciada": 0, "Em andamento": 1,
+        "Concluída": 2, "Concluída com atraso": 2, "Concluída com esforço maior": 2,
+        "Concluída com atraso e esforço maior": 2,
+    }
 
     # Statements de atividade/relato/recurso-extra são só ACUMULADOS neste
     # laço (nenhuma chamada ao banco aqui dentro) e gravados de uma vez logo

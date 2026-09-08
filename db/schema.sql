@@ -18,8 +18,17 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 -- ----------------------------------------------------------------------------
 CREATE TYPE prioridade_enum AS ENUM ('Urgente','Alta','Média','Baixa');
 
+-- As quatro variantes de conclusão ('Concluída' e as três seguintes) descrevem
+-- o MESMO evento (atividade pronta: 100% + Fim Real preenchido) — a diferença
+-- é só a classificação automática de prazo x esforço, calculada e gravada
+-- pela aplicação na hora de salvar (main.py/classificar_conclusao, 29ª
+-- rodada/migração 020). 'Concluída' sozinha = terminou dentro do prazo E
+-- dentro do esforço previsto (ou não há dados suficientes pra dizer outra
+-- coisa — ex: atividade sem prazo_horas cadastrado).
 CREATE TYPE status_atividade_enum AS ENUM (
-  'Não iniciada','Em andamento','Bloqueada','Concluída','Cancelada'
+  'Não iniciada','Em andamento','Bloqueada',
+  'Concluída','Concluída com atraso','Concluída com esforço maior','Concluída com atraso e esforço maior',
+  'Cancelada'
 );
 
 CREATE TYPE tipo_dependencia_enum AS ENUM ('FS','SS','FF','SF');
@@ -184,13 +193,17 @@ CREATE TABLE atividades (
   dtini_real        date,
   dtfim_real        date,
 
-  -- Consistência entre percentual_concluido=100, status='Concluída' e dtfim_real
-  -- preenchido é exigida pela APLICAÇÃO (main.py/validar_consistencia_conclusao,
-  -- migração 028/28ª rodada), não por CHECK aqui no banco — a importação de
-  -- cronograma (cronograma_import.py) continua podendo gravar direto por SQL sem
-  -- passar por essa validação, então uma atividade importada ainda pode ficar
-  -- temporariamente inconsistente até ser editada pela tela (ou corrigida pela
-  -- migration_019, que já limpa o que já existir hoje).
+  -- Consistência entre percentual_concluido=100, status numa das 4 variantes de
+  -- Concluída e dtfim_real preenchido é exigida pela APLICAÇÃO
+  -- (main.py/validar_consistencia_conclusao, migração 019/28ª rodada), não por
+  -- CHECK aqui no banco — a importação de cronograma (cronograma_import.py)
+  -- continua podendo gravar direto por SQL sem passar por essa validação, então
+  -- uma atividade importada ainda pode ficar temporariamente inconsistente até
+  -- ser editada pela tela (ou corrigida pela migration_019, que já limpa o que já
+  -- existir hoje). A partir da 29ª rodada (migração 020) a APLICAÇÃO também
+  -- calcula sozinha QUAL das 4 variantes de Concluída vale, a partir de
+  -- dtfim_prev x dtfim_real (prazo) e prazo_horas x horas_realizadas (esforço) —
+  -- ver main.py/classificar_conclusao.
   percentual_concluido smallint NOT NULL DEFAULT 0 CHECK (percentual_concluido BETWEEN 0 AND 100),
   status            status_atividade_enum NOT NULL DEFAULT 'Não iniciada',
   prioridade        prioridade_enum NOT NULL DEFAULT 'Média',
@@ -1075,14 +1088,25 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nom
        (SELECT string_agg(r.nome, ', ' ORDER BY r.nome)
         FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
         WHERE ar.atividade_id = a.id) AS responsaveis_nomes,
-       (CURRENT_DATE - a.dtfim_prev) AS dias_atraso
+       -- "Não iniciada" cujo início previsto já passou também é atraso, só que
+       -- mais cedo no cronograma — nesse caso conta os dias a partir do início
+       -- previsto (não do fim, que ainda pode nem ter vencido) — ver 29ª rodada.
+       CASE
+         WHEN a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE
+              AND (a.dtfim_prev IS NULL OR a.dtfim_prev >= CURRENT_DATE)
+           THEN CURRENT_DATE - a.dtini_prev
+         ELSE CURRENT_DATE - a.dtfim_prev
+       END AS dias_atraso
 FROM atividades a
 JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
-WHERE a.status NOT IN ('Concluída','Cancelada')
-  AND a.dtfim_prev IS NOT NULL
-  AND a.dtfim_prev < CURRENT_DATE;
-COMMENT ON VIEW vw_atividades_atrasadas IS 'Atividades cujo fim previsto já passou e que não foram concluídas/canceladas.';
+WHERE a.status NOT IN ('Concluída','Concluída com atraso','Concluída com esforço maior',
+                        'Concluída com atraso e esforço maior','Cancelada')
+  AND (
+    (a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE)
+    OR (a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE)
+  );
+COMMENT ON VIEW vw_atividades_atrasadas IS 'Atividades não concluídas/canceladas cujo fim previsto já passou, ou que nem começaram e já deveriam ter começado (início previsto no passado).';
 
 CREATE VIEW vw_caminho_critico AS
 SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
@@ -1099,10 +1123,18 @@ COMMENT ON VIEW vw_caminho_critico IS 'Última foto do caminho crítico calculad
 CREATE VIEW vw_resumo_frente AS
 SELECT f.projeto_id, f.id AS frente_trabalho_id, f.nome AS frente_nome,
        count(a.id) AS total_atividades,
-       count(*) FILTER (WHERE a.status = 'Concluída') AS concluidas,
+       count(*) FILTER (WHERE a.status IN ('Concluída','Concluída com atraso','Concluída com esforço maior',
+                                            'Concluída com atraso e esforço maior')) AS concluidas,
        count(*) FILTER (WHERE a.status = 'Em andamento') AS em_andamento,
        count(*) FILTER (WHERE a.status = 'Não iniciada') AS nao_iniciadas,
-       count(*) FILTER (WHERE a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev < CURRENT_DATE) AS atrasadas
+       count(*) FILTER (
+         WHERE a.status NOT IN ('Concluída','Concluída com atraso','Concluída com esforço maior',
+                                 'Concluída com atraso e esforço maior','Cancelada')
+           AND (
+             (a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE)
+             OR (a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE)
+           )
+       ) AS atrasadas
 FROM frentes_trabalho f
 LEFT JOIN atividades a ON a.frente_trabalho_id = f.id
 GROUP BY f.projeto_id, f.id, f.nome;

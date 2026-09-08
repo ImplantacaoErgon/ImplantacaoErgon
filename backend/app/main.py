@@ -99,6 +99,18 @@ RELATO_FIELDS = [
 # "Não iniciada" e "Concluída" ficam de fora — todo o resto (inclusive "Cancelada", que também
 # merece um relato explicando o motivo) precisa de relato.
 STATUS_EXIGE_RELATO = {"Em andamento", "Bloqueada", "Cancelada"}
+# As 4 variantes de "atividade concluída" (29ª rodada/migração 020) — descrevem o mesmo
+# evento (100% + Fim Real preenchido), diferindo só na classificação automática de
+# prazo x esforço calculada por classificar_conclusao(). Qualquer lugar do sistema que
+# precisar saber "esta atividade está concluída?" deve checar contra este conjunto, não
+# contra o literal "Concluída" sozinho.
+STATUS_FAMILIA_CONCLUIDA = {
+    "Concluída", "Concluída com atraso", "Concluída com esforço maior", "Concluída com atraso e esforço maior",
+}
+# Status "terminais"/de exceção que a classificação automática nunca sobrescreve sozinha —
+# uma atividade Bloqueada ou Cancelada com 100%+Fim Real preenchidos continua sendo um
+# estado contraditório que precisa de correção manual (ver validar_consistencia_conclusao).
+STATUS_NAO_AUTOMATIZAR = {"Bloqueada", "Cancelada"}
 REQUISITO_FIELDS = [
     "projeto_id", "codigo", "titulo", "descricao", "tipo_requisito", "modulo_origem",
     "frente_trabalho_id", "classificacao", "atendimento",
@@ -151,8 +163,15 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        f.nome AS frente_nome, f.cor_hex AS frente_cor,
        t.nome AS tipo_nome,
        rq.codigo AS requisito_tr_codigo, rq.titulo AS requisito_tr_titulo,
-       (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
-        AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
+       -- Atrasada: fim previsto já venceu (sem concluir/cancelar), OU a atividade
+       -- nem começou e o início previsto já passou (atraso mais cedo no
+       -- cronograma, que antes da 29ª rodada não aparecia até o fim também vencer).
+       (a.status NOT IN ('Concluída','Concluída com atraso','Concluída com esforço maior',
+                          'Concluída com atraso e esforço maior','Cancelada')
+        AND (
+          (a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE)
+          OR (a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE)
+        )) AS atrasada,
        -- Alerta antecipado de esforço: atividade ainda em andamento (não fechou em
        -- 100%) cujas horas já realizadas já ultrapassaram as horas previstas — sinal
        -- diferente de "atrasada" (que é sobre data), útil pro gerente perceber o
@@ -306,37 +325,111 @@ def delete_row(table, row_id):
     return "", 204
 
 
+def _valor_mesclado(atual, data, campo):
+    """Mesmo critério de patch_row: só um campo PRESENTE em `data` sobrescreve o que já
+    está em `atual` (a linha gravada no banco, ou None numa criação) — usado por toda
+    função de validação/classificação abaixo pra sempre calcular em cima do estado
+    RESULTANTE da gravação, nunca só do payload recebido isolado."""
+    return data[campo] if campo in data else (atual or {}).get(campo)
+
+
+def classificar_conclusao(atual, data):
+    """Calcula sozinha qual das 4 variantes de 'Concluída' vale, a partir de prazo
+    (Fim Real x Fim Previsto) e esforço (Horas Realizadas x Horas Previstas), e
+    SOBRESCREVE data['status'] com o resultado — automação pedida pelo usuário na 28ª/
+    29ª rodada ("o % de completude de uma atividade pode ser automatizado"), estendida
+    aqui para a classificação completa.
+
+    Só age quando o estado RESULTANTE da gravação (mesclando `data` com `atual`) já diz
+    "isto está pronto" — 100% concluído E Fim Real preenchido — e o Status resultante não
+    é um dos dois status de exceção (Bloqueada/Cancelada, ver STATUS_NAO_AUTOMATIZAR),
+    que a automação nunca sobrescreve sozinha (uma atividade cancelada com 100%/Fim Real
+    continua sendo um estado contraditório — ver validar_consistencia_conclusao). Fora
+    disso, não faz nada: não é papel desta função decidir SE a atividade terminou, só
+    QUAL rótulo de conclusão usar quando ela já terminou.
+
+    Sem prazo previsto (dtfim_prev) ou sem prazo de horas (prazo_horas)/horas
+    realizadas cadastrados, a falta de dado nunca é tratada como "estourou" — o
+    benefício da dúvida fica com a atividade (ex: uma atividade sem prazo_horas
+    cadastrado não pode logicamente ter "esforço maior que o previsto")."""
+    percentual = _valor_mesclado(atual, data, "percentual_concluido")
+    percentual = int(percentual) if percentual not in (None, "") else 0
+    dtfim_real = _valor_mesclado(atual, data, "dtfim_real")
+    status_resultante = _valor_mesclado(atual, data, "status")
+
+    if percentual != 100 or not dtfim_real:
+        return
+    if status_resultante in STATUS_NAO_AUTOMATIZAR:
+        return
+
+    dtfim_prev = _valor_mesclado(atual, data, "dtfim_prev")
+    prazo_horas = _valor_mesclado(atual, data, "prazo_horas")
+    horas_realizadas = _valor_mesclado(atual, data, "horas_realizadas")
+
+    atrasada = bool(dtfim_prev and dtfim_real > dtfim_prev)
+    esforco_maior = bool(
+        prazo_horas not in (None, "") and horas_realizadas not in (None, "")
+        and float(horas_realizadas) > float(prazo_horas)
+    )
+
+    if atrasada and esforco_maior:
+        data["status"] = "Concluída com atraso e esforço maior"
+    elif atrasada:
+        data["status"] = "Concluída com atraso"
+    elif esforco_maior:
+        data["status"] = "Concluída com esforço maior"
+    else:
+        data["status"] = "Concluída"
+
+
 def validar_consistencia_conclusao(atual, data):
-    """Impede gravar uma atividade num estado contraditório entre Status='Concluída',
-    percentual_concluido=100 e Fim Real preenchido — os três precisam andar sempre
-    juntos. Sem essa checagem dá pra marcar 100% deixando o Status em "Não iniciada"
-    (foi exatamente o que aconteceu num teste do usuário), o que quebra a projeção de
-    prazo do card "Atividades master" do Dashboard/Relatório Executivo — ela só
-    reconhece uma atividade como concluída pelo campo Status, então ficava
-    reprojetando data (e mostrando atraso) pra uma atividade que já estava pronta.
+    """Impede gravar uma atividade num estado contraditório entre Status (numa das 4
+    variantes de Concluída), percentual_concluido=100 e Fim Real preenchido — os três
+    precisam andar sempre juntos. Sem essa checagem dá pra marcar 100% deixando o
+    Status em "Não iniciada" (foi exatamente o que aconteceu num teste do usuário na
+    28ª rodada), o que quebra a projeção de prazo do card "Atividades master" do
+    Dashboard/Relatório Executivo — ela só reconhece uma atividade como concluída pelo
+    campo Status, então ficava reprojetando data (e mostrando atraso) pra uma atividade
+    que já estava pronta.
+
+    Chamada DEPOIS de classificar_conclusao() nas rotas — a essa altura, qualquer
+    atividade que devesse ter o Status corrigido automaticamente já foi corrigida; o
+    que sobra pra esta função pegar são os casos que a automação deliberadamente não
+    mexe: um Status de conclusão escolhido manualmente sem os dados baterem (ex:
+    "Concluída com atraso" com percentual ainda em 80%), ou Bloqueada/Cancelada
+    coexistindo com 100%+Fim Real (que precisam de correção manual e explícita).
+
     `atual` é a linha já gravada no banco (None numa criação); `data` é o payload
     recebido — só os campos presentes em `data` sobrescrevem o valor de `atual` pra
     fins desta checagem, exatamente como patch_row faz na gravação de verdade."""
-    def valor(campo):
-        return data[campo] if campo in data else (atual or {}).get(campo)
-
-    status = valor("status")
-    percentual = valor("percentual_concluido")
+    status = _valor_mesclado(atual, data, "status")
+    percentual = _valor_mesclado(atual, data, "percentual_concluido")
     percentual = int(percentual) if percentual not in (None, "") else 0
-    dtfim_real = valor("dtfim_real")
+    dtfim_real = _valor_mesclado(atual, data, "dtfim_real")
+    completo = percentual == 100 and bool(dtfim_real)
 
-    if status == "Concluída" and (percentual != 100 or not dtfim_real):
+    if status in STATUS_FAMILIA_CONCLUIDA and not completo:
         faltando = []
         if percentual != 100:
             faltando.append("o % concluído em 100")
         if not dtfim_real:
             faltando.append("a Data de Fim Real")
-        raise ValueError(f"Para marcar a atividade como Concluída, preencha também {' e '.join(faltando)}.")
+        raise ValueError(f'Para marcar a atividade como "{status}", preencha também {" e ".join(faltando)}.')
 
-    if percentual == 100 and status != "Concluída":
+    if percentual == 100 and not dtfim_real and status not in STATUS_FAMILIA_CONCLUIDA:
+        # classificar_conclusao() só reclassifica quando JÁ tem Fim Real — 100% sem Fim
+        # Real (em qualquer outro Status) continua sendo um estado incompleto: falta
+        # dizer QUANDO a atividade terminou. Mantém o mesmo aviso da 28ª rodada.
         raise ValueError(
-            'Uma atividade com 100% concluído precisa ter o Status em "Concluída" '
-            "(e a Data de Fim Real preenchida)."
+            "Uma atividade com 100% concluído precisa também ter a Data de Fim Real preenchida "
+            "(o Status de conclusão certo é calculado automaticamente a partir daí)."
+        )
+
+    if completo and status in STATUS_NAO_AUTOMATIZAR:
+        raise ValueError(
+            f'Uma atividade com 100% concluído e Data de Fim Real preenchida não pode ficar '
+            f'com o Status "{status}". Escolha um status de conclusão, ou corrija o percentual/'
+            f'a Data de Fim Real se a atividade não estiver pronta de verdade.'
         )
 
 
@@ -729,7 +822,10 @@ def create_app():
             )
         if args.get("atrasadas") == "true":
             where.append(
-                "a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE"
+                "a.status NOT IN ('Concluída','Concluída com atraso','Concluída com esforço maior',"
+                "'Concluída com atraso e esforço maior','Cancelada') AND ("
+                "(a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE) OR "
+                "(a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE))"
             )
         if args.get("criticas") == "true":
             where.append("a.cpm_critica = TRUE")
@@ -750,6 +846,11 @@ def create_app():
             )
             if pai and pai.get("requisito_tr_id"):
                 data["requisito_tr_id"] = pai["requisito_tr_id"]
+        # Classifica ANTES da checagem de relato/consistência: se os dados já dizem que a
+        # atividade está pronta (100% + Fim Real), o Status certo (Concluída/Concluída com
+        # atraso/.../com atraso e esforço maior) é calculado sozinho aqui, então as duas
+        # checagens abaixo já enxergam o Status final, não o que veio bruto no payload.
+        classificar_conclusao(None, data)
         status = data.get("status")
         if status in STATUS_EXIGE_RELATO:
             return jsonify({
@@ -774,11 +875,15 @@ def create_app():
     def update_atividade(id):
         data = request.get_json(force=True)
         atual = db.fetch_one(
-            f"SELECT status, percentual_concluido, dtini_real, dtfim_real "
+            f"SELECT status, percentual_concluido, dtini_real, dtfim_real, dtfim_prev, "
+            f"prazo_horas, horas_realizadas "
             f"FROM atividades WHERE id = {db.q(id)}"
         )
         if not atual:
             abort(404)
+        # Mesma ordem do create: classifica primeiro (pode sobrescrever data["status"]
+        # com a variante certa de Concluída), só depois checa relato/consistência.
+        classificar_conclusao(atual, data)
         novo_status = data.get("status")
         if novo_status in STATUS_EXIGE_RELATO:
             tem_relato = db.fetch_one(

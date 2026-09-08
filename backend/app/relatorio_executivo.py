@@ -32,7 +32,7 @@ Duas partes:
 
 Nenhum dado de folha de pagamento real (dados de servidores do órgão
 público) passa por aqui — só metadados do PROJETO DE IMPLANTAÇÃO (nomes de
-atividades, prazos, status, nomes de responsáveis Techne/cliente). Ainda
+atividades, prazos, status, nomes de recursos Techne/cliente). Ainda
 assim, isso sai do ambiente do cliente rumo à API da Anthropic — só chame
 isso se o cliente já autorizou (ver README).
 """
@@ -48,6 +48,13 @@ from .cpm import _dur_dias, _business_day_offset, dias_uteis_entre
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 LIMITE_ATRASADAS_NO_PROMPT = 40  # não manda a lista inteira se o projeto tiver centenas — manda uma amostra + o total
+
+# Mesma família de status "concluído" de backend/app/main.py (duplicada aqui de propósito
+# — importar de main.py criaria import circular, já que main.py importa este módulo).
+# Mantenha as duas listas em sincronia se algum dia mudar (ver 29ª rodada/migração 020).
+STATUS_FAMILIA_CONCLUIDA = {
+    "Concluída", "Concluída com atraso", "Concluída com esforço maior", "Concluída com atraso e esforço maior",
+}
 
 
 class RelatorioExecutivoError(Exception):
@@ -103,7 +110,14 @@ def _projetar_datas(projeto_id, horas_dia_util, non_working):
         pct = a.get("percentual_concluido") or 0
         dur_planejada = _dur_dias(a.get("prazo_horas"), horas_dia_util)
 
-        if status == "Concluída":
+        # Trata como concluída tanto quando o Status diz isso (qualquer uma das 4
+        # variantes de Concluída — ver STATUS_FAMILIA_CONCLUIDA) quanto quando os
+        # dados já dizem isso sozinhos (100% + Fim Real preenchido) — a partir da 28ª
+        # rodada o backend passa a impedir gravar essa combinação com um Status fora
+        # da família, mas dado já existente (import de cronograma, ou gravado antes
+        # dessa validação existir) pode continuar assim, e a projeção não deveria
+        # quebrar/mostrar atraso falso por causa disso.
+        if status in STATUS_FAMILIA_CONCLUIDA or (pct >= 100 and dtfim_real):
             fim = dtfim_real or dtfim_prev or hoje
             inicio_proj[n] = dtini_real or dtini_prev or fim
             fim_proj[n] = fim
@@ -202,9 +216,18 @@ def coletar_dados_projeto(projeto_id):
                (SELECT string_agg(r.nome, ', ' ORDER BY r.nome)
                 FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
                 WHERE ar.atividade_id = a.id) AS responsaveis_nomes,
-               (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
-                AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
-               (CURRENT_DATE - a.dtfim_prev) AS dias_atraso
+               (a.status NOT IN ('Concluída','Concluída com atraso','Concluída com esforço maior',
+                                 'Concluída com atraso e esforço maior','Cancelada')
+                AND (
+                  (a.dtfim_prev IS NOT NULL AND a.dtfim_prev < CURRENT_DATE)
+                  OR (a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE)
+                )) AS atrasada,
+               CASE
+                 WHEN a.status = 'Não iniciada' AND a.dtini_prev IS NOT NULL AND a.dtini_prev < CURRENT_DATE
+                      AND (a.dtfim_prev IS NULL OR a.dtfim_prev >= CURRENT_DATE)
+                   THEN CURRENT_DATE - a.dtini_prev
+                 ELSE CURRENT_DATE - a.dtfim_prev
+               END AS dias_atraso
         FROM atividades a
         JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
         WHERE a.projeto_id = {db.q(projeto_id)}
@@ -218,7 +241,7 @@ def coletar_dados_projeto(projeto_id):
     hoje = date.today()
 
     # ---------------- KPIs gerais ----------------
-    concluidas = sum(1 for a in atividades if a["status"] == "Concluída")
+    concluidas = sum(1 for a in atividades if a["status"] in STATUS_FAMILIA_CONCLUIDA)
     em_andamento = sum(1 for a in atividades if a["status"] == "Em andamento")
     bloqueadas = sum(1 for a in atividades if a["status"] == "Bloqueada")
     canceladas = sum(1 for a in atividades if a["status"] == "Cancelada")
@@ -252,7 +275,7 @@ def coletar_dados_projeto(projeto_id):
     for a in atividades:
         f = por_frente.setdefault(a["frente_nome"], {"total": 0, "concluidas": 0, "em_andamento": 0, "atrasadas": 0})
         f["total"] += 1
-        if a["status"] == "Concluída":
+        if a["status"] in STATUS_FAMILIA_CONCLUIDA:
             f["concluidas"] += 1
         if a["status"] == "Em andamento":
             f["em_andamento"] += 1

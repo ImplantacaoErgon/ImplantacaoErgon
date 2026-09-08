@@ -871,8 +871,9 @@
         <div class="field"><label>Tipo de atividade elementar</label><select id="at-tipo"></select></div>
         <div class="field"><label>Item do TR (opcional)</label><select id="at-requisito-tr"></select></div>
 
-        <div class="field"><label>Status</label>
-          <select id="at-status"><option>Não iniciada</option><option>Em andamento</option><option>Bloqueada</option><option>Concluída</option><option>Cancelada</option></select>
+        <div class="field full"><label>Status</label>
+          <select id="at-status"><option>Não iniciada</option><option>Em andamento</option><option>Bloqueada</option><option>Concluída</option><option>Concluída com atraso</option><option>Concluída com esforço maior</option><option>Concluída com atraso e esforço maior</option><option>Cancelada</option></select>
+          <div class="muted" style="font-size:12px;margin-top:4px;">Ao preencher 100% + Data de Fim Real, o sistema calcula sozinho qual variante de "Concluída" vale (no prazo/com atraso × dentro do esforço/com esforço maior) — não precisa escolher manualmente.</div>
         </div>
         <div class="field"><label>% concluído</label><input id="at-percentual" type="number" min="0" max="100"></div>
         <div class="field full" style="display:flex;align-items:center;gap:8px;">
@@ -1305,8 +1306,13 @@
 const $ = id => document.getElementById(id);
 const API = "/api";
 
-const STATUS_COLOR = {"Não iniciada":"faint","Em andamento":"accent","Bloqueada":"warn","Concluída":"ok","Cancelada":"danger",
+const STATUS_COLOR = {"Não iniciada":"faint","Em andamento":"accent","Bloqueada":"warn","Concluída":"ok",
+  "Concluída com atraso":"warn","Concluída com esforço maior":"warn","Concluída com atraso e esforço maior":"danger",
+  "Cancelada":"danger",
   "Não iniciado":"faint","Em levantamento":"warn","Especificado":"accent","Em desenvolvimento":"accent","Em homologação":"warn","Entregue":"ok","Aprovado":"ok","Rejeitado":"danger"};
+// Família de status "concluído" (29ª rodada) — mesma lista de backend/app/main.py
+// STATUS_FAMILIA_CONCLUIDA, duplicada aqui porque o front-end não importa Python.
+const STATUS_FAMILIA_CONCLUIDA = ["Concluída","Concluída com atraso","Concluída com esforço maior","Concluída com atraso e esforço maior"];
 const ATENDIMENTO_COLOR = {"Nativo":"ok","Parcial":"warn","Customizado":"accent","Não atende":"danger","A analisar":"faint"};
 const COLOR_VAR = {ok:"var(--ok)",warn:"var(--warn)",accent:"var(--accent)",danger:"var(--danger)",faint:"var(--text-faint)"};
 const SOFT_VAR = {ok:"var(--ok-soft)",warn:"var(--warn-soft)",accent:"var(--accent-soft)",danger:"var(--danger-soft)",faint:"var(--surface-2)"};
@@ -1681,7 +1687,9 @@ function fillStaticSelects(){
   $("fat-receb-recurso").innerHTML = `<option value="">—</option>` +
     RECURSOS.filter(r=>r.tipo_vinculo!=="Techne").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
 
-  const statusAtiv = ["Não iniciada","Em andamento","Bloqueada","Concluída","Cancelada"];
+  const statusAtiv = ["Não iniciada","Em andamento","Bloqueada",
+    "Concluída","Concluída com atraso","Concluída com esforço maior","Concluída com atraso e esforço maior",
+    "Cancelada"];
   $("f-status").innerHTML = `<option value="">Status (todos)</option>` + statusAtiv.map(s=>`<option>${s}</option>`).join("");
 
   const classif = ["Essencial/Imediato","Obrigatório","Desejável","Customizado Curto","Customizado Médio","Customizado Longo"];
@@ -2042,7 +2050,7 @@ function renderGantt(list){
 // ================= DASHBOARD =================
 function renderDashboard(){
   const total = ATIVIDADES.length;
-  const concluidas = ATIVIDADES.filter(a=>a.status==="Concluída").length;
+  const concluidas = ATIVIDADES.filter(a=>STATUS_FAMILIA_CONCLUIDA.includes(a.status)).length;
   const atrasadas = ATIVIDADES.filter(a=>a.atrasada).length;
   const emAndamento = ATIVIDADES.filter(a=>a.status==="Em andamento").length;
   const criticas = ATIVIDADES.filter(a=>a.cpm_critica).length;
@@ -2153,7 +2161,7 @@ function renderEsforcoEstourado(){
 function renderAlertasPrioridade(){
   const alertas = ATIVIDADES.filter(a =>
     (a.prioridade === "Urgente" || a.prioridade === "Alta") &&
-    a.status !== "Concluída" && a.status !== "Cancelada" &&
+    !STATUS_FAMILIA_CONCLUIDA.includes(a.status) && a.status !== "Cancelada" &&
     (!(a.responsaveis||[]).length || !a.dtfim_prev)
   ).sort((a,b)=> (a.prioridade==="Urgente"?0:1) - (b.prioridade==="Urgente"?0:1));
 
