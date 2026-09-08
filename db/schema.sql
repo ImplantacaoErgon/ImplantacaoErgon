@@ -184,6 +184,13 @@ CREATE TABLE atividades (
   dtini_real        date,
   dtfim_real        date,
 
+  -- Consistência entre percentual_concluido=100, status='Concluída' e dtfim_real
+  -- preenchido é exigida pela APLICAÇÃO (main.py/validar_consistencia_conclusao,
+  -- migração 028/28ª rodada), não por CHECK aqui no banco — a importação de
+  -- cronograma (cronograma_import.py) continua podendo gravar direto por SQL sem
+  -- passar por essa validação, então uma atividade importada ainda pode ficar
+  -- temporariamente inconsistente até ser editada pela tela (ou corrigida pela
+  -- migration_019, que já limpa o que já existir hoje).
   percentual_concluido smallint NOT NULL DEFAULT 0 CHECK (percentual_concluido BETWEEN 0 AND 100),
   status            status_atividade_enum NOT NULL DEFAULT 'Não iniciada',
   prioridade        prioridade_enum NOT NULL DEFAULT 'Média',

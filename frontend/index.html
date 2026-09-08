@@ -419,6 +419,14 @@
         <tbody id="dash-alertas"></tbody>
       </table></div>
     </div>
+    <div class="card" id="dash-esforco-card" hidden>
+      <h3>⏱ Esforço acima do previsto — ainda em andamento</h3>
+      <div class="view-sub" style="margin-top:-6px;">Atividades em andamento cujas horas já realizadas já ultrapassaram as horas previstas, mesmo sem terem chegado a 100% — um alerta antecipado, sem precisar esperar a atividade fechar pra descobrir que passou do esforço planejado.</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>% Concl.</th><th>Previsto × Realizado</th></tr></thead>
+        <tbody id="dash-esforco"></tbody>
+      </table></div>
+    </div>
     <div class="card">
       <h3>Horas por recurso (previsto × realizado)</h3>
       <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada recurso aparece como participante. Cada atividade é contada por inteiro para todos os seus participantes, independente de quantos sejam. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
@@ -1977,7 +1985,7 @@ function renderAtividadesTable(list){
       <td class="mono">${esc(a.codigo_wbs||"—")}</td>
       <td>${a.eh_atividade_master?`<span title="Atividade master (entregável mestre do projeto)">★</span> `:""}${a.eh_entregavel?`<span title="Entregável (atrelado a faturamento)">💰</span> `:""}${esc(a.nome)}${a.requisito_tr_codigo?`<div class="muted" style="font-size:11px;">TR: ${esc(a.requisito_tr_codigo)}</div>`:""}</td>
       <td>${a.etapa_numero}.${esc(a.frente_nome)}</td>
-      <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}${a.atrasada?" "+pill("Atrasada","danger"):""}</td>
+      <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}${a.atrasada?" "+pill("Atrasada","danger"):""}${a.esforco_estourado?" "+pill("Esforço acima do previsto","warn"):""}</td>
       <td class="mono">${fmtDate(a.dtini_prev)}</td>
       <td class="mono">${fmtDate(a.dtfim_prev)}</td>
       <td class="mono">${a.percentual_concluido}%</td>
@@ -2070,6 +2078,7 @@ function renderDashboard(){
     : `<li class="muted">Nenhum marco pendente.</li>`;
 
   renderAlertasPrioridade();
+  renderEsforcoEstourado();
   renderHorasPorRecurso();
   renderAtividadesMaster();
 }
@@ -2116,6 +2125,26 @@ function renderAtividadesMaster(){
     $("dash-master-vazio").textContent = "Não foi possível carregar a previsão das atividades master.";
     $("dash-master-vazio").hidden = false;
     $("dash-master-tabela-wrap").hidden = true;
+  });
+}
+
+// Atividades ainda "Em andamento" (não concluídas) cujas horas já realizadas já
+// passaram das horas previstas — diferente de "Atrasada" (que é sobre data), é um
+// alerta sobre ESFORÇO, e antecipado: não precisa esperar a atividade fechar em 100%
+// pra descobrir que já estourou o previsto. Campo `esforco_estourado` calculado no
+// backend (ver ATIVIDADE_SELECT em main.py).
+function renderEsforcoEstourado(){
+  const lista = ATIVIDADES.filter(a => a.esforco_estourado);
+  $("dash-esforco-card").hidden = lista.length === 0;
+  if(!lista.length) return;
+  $("dash-esforco").innerHTML = lista.map(a=>`
+    <tr class="clickable" data-id="${a.id}">
+      <td class="mono">${esc(a.codigo_wbs||"—")}</td><td>${esc(a.nome)}</td>
+      <td>${esc(a.frente_nome)}</td><td class="mono">${a.percentual_concluido}%</td>
+      <td>${horasCell(a)}</td>
+    </tr>`).join("");
+  $("dash-esforco").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>{ goToView("cronograma"); openAtividadeModal(byId(ATIVIDADES, tr.dataset.id)); });
   });
 }
 

@@ -153,6 +153,12 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        rq.codigo AS requisito_tr_codigo, rq.titulo AS requisito_tr_titulo,
        (a.status NOT IN ('Concluída','Cancelada') AND a.dtfim_prev IS NOT NULL
         AND a.dtfim_prev < CURRENT_DATE) AS atrasada,
+       -- Alerta antecipado de esforço: atividade ainda em andamento (não fechou em
+       -- 100%) cujas horas já realizadas já ultrapassaram as horas previstas — sinal
+       -- diferente de "atrasada" (que é sobre data), útil pro gerente perceber o
+       -- estouro de esforço antes mesmo da atividade terminar (ver 28ª rodada).
+       (a.status = 'Em andamento' AND a.horas_realizadas IS NOT NULL AND a.prazo_horas IS NOT NULL
+        AND a.horas_realizadas > a.prazo_horas) AS esforco_estourado,
        -- Lista completa de recursos/participantes (N, não mais 2 campos fixos —
        -- ver tabela atividade_recurso e migração 012), já pronta pro front-end sem
        -- round-trip extra: cada item {id, nome, tipo_vinculo}.
@@ -298,6 +304,61 @@ def delete_row(table, row_id):
     (ver handle_db_error), então aqui só dispara o DELETE mesmo."""
     db.execute(f"DELETE FROM {table} WHERE id = {db.q(row_id)}")
     return "", 204
+
+
+def validar_consistencia_conclusao(atual, data):
+    """Impede gravar uma atividade num estado contraditório entre Status='Concluída',
+    percentual_concluido=100 e Fim Real preenchido — os três precisam andar sempre
+    juntos. Sem essa checagem dá pra marcar 100% deixando o Status em "Não iniciada"
+    (foi exatamente o que aconteceu num teste do usuário), o que quebra a projeção de
+    prazo do card "Atividades master" do Dashboard/Relatório Executivo — ela só
+    reconhece uma atividade como concluída pelo campo Status, então ficava
+    reprojetando data (e mostrando atraso) pra uma atividade que já estava pronta.
+    `atual` é a linha já gravada no banco (None numa criação); `data` é o payload
+    recebido — só os campos presentes em `data` sobrescrevem o valor de `atual` pra
+    fins desta checagem, exatamente como patch_row faz na gravação de verdade."""
+    def valor(campo):
+        return data[campo] if campo in data else (atual or {}).get(campo)
+
+    status = valor("status")
+    percentual = valor("percentual_concluido")
+    percentual = int(percentual) if percentual not in (None, "") else 0
+    dtfim_real = valor("dtfim_real")
+
+    if status == "Concluída" and (percentual != 100 or not dtfim_real):
+        faltando = []
+        if percentual != 100:
+            faltando.append("o % concluído em 100")
+        if not dtfim_real:
+            faltando.append("a Data de Fim Real")
+        raise ValueError(f"Para marcar a atividade como Concluída, preencha também {' e '.join(faltando)}.")
+
+    if percentual == 100 and status != "Concluída":
+        raise ValueError(
+            'Uma atividade com 100% concluído precisa ter o Status em "Concluída" '
+            "(e a Data de Fim Real preenchida)."
+        )
+
+
+def aplicar_percentual_inicial(atual, data):
+    """Sugestão automática de % concluído ao registrar que a atividade começou de
+    verdade: quando a Data de Início Real está sendo preenchida agora pela primeira
+    vez (estava vazia em `atual`) e o usuário não digitou, neste mesmo salvamento, um
+    percentual diferente do que já estava gravado (ou 0, numa atividade nova), o
+    percentual sobe sozinho pra 20% — só um ponto de partida, continua editável a
+    qualquer momento depois. Nunca sobrescreve um valor que o usuário tenha digitado
+    deliberadamente junto com essa mesma data. Só dispara na transição "sem início
+    real" -> "com início real"; preencher/alterar a data de novo depois não reaplica."""
+    dtini_real_novo = data.get("dtini_real")
+    dtini_real_antigo = (atual or {}).get("dtini_real")
+    if not dtini_real_novo or dtini_real_antigo:
+        return
+
+    percentual_antigo = int((atual or {}).get("percentual_concluido") or 0)
+    percentual_novo = data.get("percentual_concluido")
+    percentual_novo = int(percentual_novo) if percentual_novo not in (None, "") else percentual_antigo
+    if percentual_novo == percentual_antigo and percentual_antigo == 0:
+        data["percentual_concluido"] = 20
 
 
 def create_app():
@@ -695,6 +756,11 @@ def create_app():
                 "erro": f'Não é possível criar a atividade já como "{status}". '
                         'Crie como "Não iniciada" e, na sequência, registre um relato de andamento ao mudar o status.'
             }), 400
+        try:
+            validar_consistencia_conclusao(None, data)
+        except ValueError as e:
+            return jsonify({"erro": str(e)}), 400
+        aplicar_percentual_inicial(None, data)
         return jsonify(insert_row("atividades", data, ATIVIDADE_FIELDS)), 201
 
     @app.get("/api/atividades/<id>")
@@ -707,6 +773,12 @@ def create_app():
     @app.put("/api/atividades/<id>")
     def update_atividade(id):
         data = request.get_json(force=True)
+        atual = db.fetch_one(
+            f"SELECT status, percentual_concluido, dtini_real, dtfim_real "
+            f"FROM atividades WHERE id = {db.q(id)}"
+        )
+        if not atual:
+            abort(404)
         novo_status = data.get("status")
         if novo_status in STATUS_EXIGE_RELATO:
             tem_relato = db.fetch_one(
@@ -717,6 +789,11 @@ def create_app():
                     "erro": f'Status "{novo_status}" exige ao menos um relato de andamento registrado. '
                             'Adicione um relato na aba Relatos e tente salvar novamente.'
                 }), 400
+        try:
+            validar_consistencia_conclusao(atual, data)
+        except ValueError as e:
+            return jsonify({"erro": str(e)}), 400
+        aplicar_percentual_inicial(atual, data)
         usuario = request.headers.get("X-Usuario", "")
         prelude = f"SET LOCAL app.usuario_atual = {db.q(usuario)};" if usuario else ""
         row = patch_row("atividades", id, data, ATIVIDADE_FIELDS, prelude=prelude)
