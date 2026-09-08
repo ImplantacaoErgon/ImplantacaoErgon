@@ -80,13 +80,24 @@
   .topbar-marca{display:flex;flex-direction:row;align-items:center;gap:10px;}
   .topbar-marca img{max-height:52px;max-width:220px;object-fit:contain;}
   .topbar-marca .topbar-empresa{font-size:14px;font-weight:600;color:var(--text-muted);}
-  nav.tabs{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap;}
+  nav.tabs{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap;align-items:flex-start;}
   nav.tabs button{
     background:transparent;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;
     color:var(--text-muted);cursor:pointer;font-family:inherit;
   }
   nav.tabs button:hover{background:var(--surface-2);color:var(--text);}
   nav.tabs button.active{background:var(--accent-soft);color:var(--accent-strong);}
+  /* Grupos de navegação com submenu (ex.: Cronograma > Caminho Crítico/Riscos & Marcos) */
+  .tab-group{position:relative;}
+  .tab-group-trigger .caret{font-size:9px;margin-left:3px;display:inline-block;transition:transform .15s;}
+  .tab-group.open .tab-group-trigger .caret{transform:rotate(180deg);}
+  .tab-group-menu{
+    display:none;position:absolute;top:100%;left:0;margin-top:4px;min-width:190px;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
+    padding:5px;flex-direction:column;gap:1px;z-index:30;
+  }
+  .tab-group.open .tab-group-menu{display:flex;}
+  .tab-group-menu button{width:100%;text-align:left;border-radius:7px;white-space:nowrap;}
 
   main{max-width:1400px;margin:0 auto;padding:20px 22px 64px;}
   .view{display:none;}
@@ -356,13 +367,23 @@
     </div>
     <nav class="tabs" id="tabs">
       <button data-view="dashboard" class="active">Dashboard</button>
-      <button data-view="cronograma">Cronograma</button>
-      <button data-view="critico">Caminho Crítico</button>
-      <button data-view="requisitos">Requisitos TR</button>
-      <button data-view="analisar-requisitos">🔍 Analisar Requisitos</button>
-      <button data-view="faturas">💵 Faturas</button>
-      <button data-view="riscos">Riscos &amp; Marcos</button>
+      <div class="tab-group" data-group>
+        <button type="button" class="tab-group-trigger" data-views="cronograma,critico,riscos">Cronograma <span class="caret">▾</span></button>
+        <div class="tab-group-menu">
+          <button data-view="cronograma">Cronograma</button>
+          <button data-view="critico">Caminho Crítico</button>
+          <button data-view="riscos">Riscos &amp; Marcos</button>
+        </div>
+      </div>
       <button data-view="minhas-atividades">Minhas atividades</button>
+      <button data-view="faturas">💵 Faturas</button>
+      <div class="tab-group" data-group>
+        <button type="button" class="tab-group-trigger" data-views="requisitos,analisar-requisitos">Requisitos TR <span class="caret">▾</span></button>
+        <div class="tab-group-menu">
+          <button data-view="requisitos">Requisitos TR</button>
+          <button data-view="analisar-requisitos">🔍 Analisar Requisitos</button>
+        </div>
+      </div>
       <button data-view="configuracoes">⚙ Configurações</button>
     </nav>
   </div>
@@ -1848,10 +1869,31 @@ function wireMinhasAtividades(){
 }
 
 // ---------------- nav ----------------
+// A barra de navegação tem dois níveis: botões simples (data-view) e grupos
+// com submenu (.tab-group, ex.: "Cronograma" agrupando Caminho Crítico e
+// Riscos & Marcos; "Requisitos TR" agrupando Analisar Requisitos) — o gatilho
+// do grupo (.tab-group-trigger) só abre/fecha o submenu, quem navega é
+// sempre um botão com data-view (dentro do submenu, ou solto na barra).
+function fecharTabGroups(exceto){
+  document.querySelectorAll(".tab-group.open").forEach(g=>{ if(g!==exceto) g.classList.remove("open"); });
+}
 function wireNav(){
   $("tabs").addEventListener("click", e=>{
+    const trigger=e.target.closest(".tab-group-trigger");
+    if(trigger){
+      const grupo=trigger.closest(".tab-group");
+      const abrir=!grupo.classList.contains("open");
+      fecharTabGroups(null);
+      grupo.classList.toggle("open", abrir);
+      return;
+    }
     const btn=e.target.closest("button[data-view]"); if(!btn) return;
+    fecharTabGroups(null);
     goToView(btn.dataset.view);
+  });
+  // Clicar fora de qualquer grupo aberto fecha o submenu.
+  document.addEventListener("click", e=>{
+    if(!e.target.closest(".tab-group")) fecharTabGroups(null);
   });
 }
 
@@ -1875,7 +1917,13 @@ function wireDashboardRefresh(){
   });
 }
 function goToView(view){
-  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+  document.querySelectorAll("nav.tabs button[data-view]").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+  // Gatilho do grupo (ex.: "Cronograma ▾") fica destacado quando a view atual
+  // é a dele ou de qualquer uma das views agrupadas dentro do seu submenu.
+  document.querySelectorAll(".tab-group-trigger").forEach(t=>{
+    const views=(t.dataset.views||"").split(",");
+    t.classList.toggle("active", views.includes(view));
+  });
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+view));
   if(view==="critico") loadCaminhoCritico();
   if(view==="minhas-atividades") carregarMinhasAtividades();
