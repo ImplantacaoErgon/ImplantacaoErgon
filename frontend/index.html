@@ -360,6 +360,7 @@
       <button data-view="critico">Caminho Crítico</button>
       <button data-view="requisitos">Requisitos TR</button>
       <button data-view="analisar-requisitos">🔍 Analisar Requisitos</button>
+      <button data-view="faturas">💵 Faturas</button>
       <button data-view="riscos">Riscos &amp; Marcos</button>
       <button data-view="minhas-atividades">Minhas atividades</button>
       <button data-view="configuracoes">⚙ Configurações</button>
@@ -550,6 +551,33 @@
     </div>
   </section>
 
+  <!-- ============ FATURAS (27ª rodada) ============ -->
+  <section class="view" id="view-faturas">
+    <h2 class="view-title">Faturas</h2>
+    <div class="view-sub">Faturas emitidas para os entregáveis do cronograma (atividades marcadas como "Entregável"), com prazos de envio/pagamento e valores.</div>
+    <div class="kpis" id="fat-kpis"></div>
+    <div class="filters">
+      <input type="text" id="fat-search" placeholder="Buscar por número, atividade, descrição…">
+      <select id="fat-status-pagamento">
+        <option value="">Pagamento (todos)</option>
+        <option value="pago">Pago</option>
+        <option value="pendente">Pendente</option>
+        <option value="atrasada">Atrasada</option>
+      </select>
+      <button class="btn small" id="btn-new-fatura" style="margin-left:auto;">+ Nova fatura</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Número</th><th>Atividade (entregável)</th><th>Emissão</th><th>Envio</th>
+          <th>Pagamento (previsão / real)</th><th>Valor total</th><th>Impostos</th><th>Valor líquido</th>
+          <th>Recebimento</th><th>Status</th>
+        </tr></thead>
+        <tbody id="fat-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ============ RISCOS & MARCOS ============ -->
   <section class="view" id="view-riscos">
     <h2 class="view-title">Riscos &amp; Marcos</h2>
@@ -637,6 +665,7 @@
           <div><span class="muted" style="display:block;font-size:11.5px;">Início previsto</span><span id="cfg-projeto-inicio">—</span></div>
           <div><span class="muted" style="display:block;font-size:11.5px;">Fim previsto</span><span id="cfg-projeto-fim">—</span></div>
           <div><span class="muted" style="display:block;font-size:11.5px;">Prazo total</span><span id="cfg-projeto-prazo">—</span></div>
+          <div><span class="muted" style="display:block;font-size:11.5px;">Valor global do contrato</span><span id="cfg-projeto-valor-contrato">—</span></div>
         </div>
         <div style="display:flex;justify-content:flex-end;">
           <button class="btn" id="cfg-projeto-editar">✎ Editar dados do projeto</button>
@@ -966,6 +995,45 @@
   </div>
 </div>
 
+<!-- ================= MODAL: FATURA (27ª rodada) ================= -->
+<div class="overlay" id="overlay-fatura" hidden>
+  <div class="modal">
+    <div class="modal-head"><h2 id="fat-modal-title">Nova fatura</h2><button class="btn ghost" id="fat-close">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Número da fatura</label><input id="fat-numero" type="text" placeholder="Ex: NF-1234 ou 001/2026"></div>
+      <div class="field full"><label>Atividade (entregável) *</label><select id="fat-atividade"></select></div>
+
+      <div class="field"><label>Data de emissão</label><input id="fat-data-emissao" type="date"></div>
+      <div class="field"><label>Data de envio</label><input id="fat-data-envio" type="date"></div>
+      <div class="field"><label>Previsão de pagamento</label><input id="fat-data-prev-pagto" type="date"></div>
+      <div class="field"><label>Data de pagamento</label><input id="fat-data-pagto" type="date"></div>
+
+      <div class="field full"><label>Descrição</label><textarea id="fat-descricao"></textarea></div>
+
+      <div class="field full"><label>Responsável pela entrega (recurso Techne) *</label><select id="fat-resp-entrega"></select></div>
+
+      <div class="field full">
+        <label>Responsável pelo recebimento *</label>
+        <div style="display:flex;gap:16px;margin:4px 0 8px;font-size:12.5px;">
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="fat-receb-modo" id="fat-receb-modo-recurso" value="recurso" checked style="width:auto;"> Recurso cadastrado</label>
+          <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="fat-receb-modo" id="fat-receb-modo-nome" value="nome" style="width:auto;"> Pessoa do cliente (nome livre, sem cadastro)</label>
+        </div>
+        <select id="fat-receb-recurso"></select>
+        <input id="fat-receb-nome" type="text" placeholder="Nome da pessoa do cliente" hidden>
+      </div>
+      <div class="field full"><label>Cargo do responsável pelo recebimento</label><input id="fat-receb-cargo" type="text" placeholder="Preenchido automaticamente ao escolher um recurso" disabled></div>
+
+      <div class="field"><label>Valor total</label><input id="fat-valor-total" type="number" step="0.01" min="0"></div>
+      <div class="field"><label>Impostos</label><input id="fat-impostos" type="number" step="0.01" min="0"></div>
+      <div class="field"><label>Valor líquido</label><input id="fat-valor-liquido" type="text" disabled></div>
+    </div>
+    <div class="modal-foot">
+      <span></span>
+      <div style="display:flex;gap:8px;"><button class="btn secondary" id="fat-cancel">Cancelar</button><button class="btn" id="fat-save">Salvar</button></div>
+    </div>
+  </div>
+</div>
+
 <!-- ================= MODAL: IMPORTAR REQUISITOS DO DOCUMENTO DO TR ================= -->
 <div class="overlay" id="overlay-importar-tr" hidden>
   <div class="modal wide">
@@ -1161,6 +1229,7 @@
       <div class="modal-body">
         <div class="field"><label>Sigla do projeto</label><input id="proj-sigla" type="text" placeholder="Ex: ERGON-PGFN"></div>
         <div class="field"><label>Prazo total (meses)</label><input id="proj-prazo-meses" type="number" step="0.5" min="0"></div>
+        <div class="field"><label>Valor global do contrato</label><input id="proj-valor-contrato" type="number" step="0.01" min="0" placeholder="Ex: 1500000.00"></div>
         <div class="field full"><label>Nome do projeto *</label><input id="proj-nome" type="text" placeholder="Ex: Implantação do Sistema Ergon"></div>
         <div class="field full"><label>Instituição *</label><input id="proj-instituicao" type="text" placeholder="Nome do órgão/cliente"></div>
         <div class="field full"><label>Descrição</label><textarea id="proj-descricao"></textarea></div>
@@ -1290,7 +1359,7 @@ async function chamarAuthApi(path, body){
 // ---------------- estado global ----------------
 let USUARIO_LOGADO = null;
 let PARAMETROS = null; // logo + nome da empresa (Configurações > Parâmetros) — ver carregarParametros()
-let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[], CALENDARIO=[], MANUAIS=[];
+let PROJETO=null, PROJETOS=[], ETAPAS=[], FRENTES=[], TIPOS=[], RECURSOS=[], USUARIOS=[], ATIVIDADES=[], REQUISITOS=[], RISCOS=[], MARCOS=[], CALENDARIO=[], MANUAIS=[], FATURAS=[];
 let editingAtividadeId=null, editingRequisitoId=null;
 let MA_DATA_REF=new Date(), MA_GRADE=null; // "Minhas atividades" — data de referência da semana mostrada e último retorno do servidor
 const STATUS_EXIGE_RELATO = new Set(["Em andamento","Bloqueada","Cancelada"]);
@@ -1352,15 +1421,15 @@ async function trocarProjeto(id){
 // primeiro). Fecha modais de atividade/requisito abertos antes de trocar,
 // pra evitar salvar algo editado no projeto anterior como se fosse do novo.
 async function recarregarDadosDoProjeto(){
-  closeAtividadeModal(); closeRequisitoModal();
+  closeAtividadeModal(); closeRequisitoModal(); closeFaturaModal();
   [ETAPAS, FRENTES, CALENDARIO] = await Promise.all([
     api(`/etapas?projeto_id=${PROJETO.id}`), api(`/frentes?projeto_id=${PROJETO.id}`),
     api(`/calendario?projeto_id=${PROJETO.id}`)
   ]);
   fillStaticSelects();
-  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
+  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos(), loadFaturas()]);
   fillStaticSelects();
-  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos(); renderFaturas();
   // "Minhas atividades" NÃO depende do projeto ativo desde a 16ª rodada
   // (mostra todos os projetos em que o usuário está delegado) — por isso,
   // ao contrário das demais views desta função, não precisa recarregar
@@ -1550,13 +1619,14 @@ async function afterProjetoReady(){
   aplicarMarcaNoTopo();
   fillStaticSelects();
   wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
-  wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos();
+  wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos(); wireFaturaModal(); wireFaturaFiltros();
   setupCsvTemplateLink();
-  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos()]);
-  // Reaplica agora que REQUISITOS já está carregado — o select "Item do TR" da
-  // atividade depende dele e a primeira chamada acima rodou antes desse load.
+  await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos(), loadFaturas()]);
+  // Reaplica agora que REQUISITOS/ATIVIDADES já estão carregados — os selects
+  // "Item do TR" (atividade) e "Atividade (entregável)" (fatura) dependem
+  // deles e a primeira chamada acima rodou antes desse load.
   fillStaticSelects();
-  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos();
+  renderDashboard(); renderCronograma(); renderRequisitos(); renderRiscosMarcos(); renderConfigTable(); renderAnalisarRequisitos(); renderFaturas();
   $("tabs").style.display = "flex";
 }
 
@@ -1576,6 +1646,13 @@ function fillStaticSelects(){
   $("at-tipo").innerHTML = `<option value="">—</option>` + TIPOS.map(t=>`<option value="${t.id}">${esc(t.nome)}${t.ativo===false?" (inativo)":""}</option>`).join("");
   $("at-requisito-tr").innerHTML = `<option value="">—</option>` + REQUISITOS.map(r=>`<option value="${r.id}">${esc(r.codigo)} — ${esc(r.titulo)}</option>`).join("");
 
+  // Só atividades marcadas como Entregável (eh_entregavel, 26ª rodada) entram
+  // aqui — a mesma regra que o backend valida em preparar_fatura(). Depende
+  // de ATIVIDADES, carregado no mesmo lote que REQUISITOS — ver comentário
+  // acima sobre reaplicar fillStaticSelects() depois desse load.
+  $("fat-atividade").innerHTML = `<option value="">—</option>` + ATIVIDADES.filter(a=>a.eh_entregavel)
+    .map(a=>`<option value="${a.id}">${a.codigo_wbs?esc(a.codigo_wbs)+" — ":""}${esc(a.nome)}</option>`).join("");
+
   // Nota: as listas de recursos NÃO filtram só "ativo" — um recurso
   // marcado inativo continua aparecendo (com "(inativo)" no rótulo) porque
   // atividades antigas ainda podem apontar pra ele; escondê-lo faria o campo
@@ -1585,6 +1662,16 @@ function fillStaticSelects(){
   $("f-responsavel").innerHTML = `<option value="">Recurso (todos)</option>` + recursoOpts;
   $("req-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
   $("at-relato-pend-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
+
+  // Fatura (27ª rodada): responsável pela entrega precisa ser Techne (regra
+  // validada de novo no backend, em preparar_fatura); responsável pelo
+  // recebimento, quando vinculado a um recurso, precisa ser alguém que NÃO
+  // seja da Techne (o cliente/terceirizado que recebe) — ver descrição do
+  // usuário. Nomes sem cadastro entram pelo campo de texto livre ao lado.
+  $("fat-resp-entrega").innerHTML = `<option value="">—</option>` +
+    RECURSOS.filter(r=>r.tipo_vinculo==="Techne").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
+  $("fat-receb-recurso").innerHTML = `<option value="">—</option>` +
+    RECURSOS.filter(r=>r.tipo_vinculo!=="Techne").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
 
   const statusAtiv = ["Não iniciada","Em andamento","Bloqueada","Concluída","Cancelada"];
   $("f-status").innerHTML = `<option value="">Status (todos)</option>` + statusAtiv.map(s=>`<option>${s}</option>`).join("");
@@ -2446,6 +2533,187 @@ async function saveRequisito(){
   }catch(e){}
 }
 
+// ================= FATURAS (27ª rodada) =================
+// Faturamento dos entregáveis do cronograma — ver preparar_fatura() no
+// backend para as regras de validação (atividade precisa ser um entregável,
+// responsável pela entrega precisa ser Techne, responsável pelo recebimento
+// é um recurso cadastrado OU um nome livre, nunca os dois vazios ao mesmo
+// tempo). valor_liquido nunca é enviado ao backend — é coluna GENERATED
+// (valor_total - impostos), calculada pelo próprio Postgres; o campo aqui na
+// tela é só uma prévia calculada no cliente, pro usuário ver antes de salvar.
+async function loadFaturas(){
+  FATURAS = await api(`/faturas?projeto_id=${PROJETO.id}`);
+}
+
+function fmtMoeda(v){
+  if(v==null || v==="") return "—";
+  return Number(v).toLocaleString("pt-BR", {style:"currency", currency:"BRL"});
+}
+
+function fatFilters(){
+  return {
+    search: ($("fat-search").value||"").trim().toLowerCase(),
+    statusPagamento: $("fat-status-pagamento").value,
+  };
+}
+
+function fatStatusPagamento(f){
+  if(f.paga) return {label:"Pago", kind:"ok"};
+  if(f.atrasada) return {label:"Atrasada", kind:"danger"};
+  return {label:"Pendente", kind:"warn"};
+}
+
+function renderFaturas(){
+  const filtro = fatFilters();
+  const list = FATURAS.filter(f=>{
+    const st = fatStatusPagamento(f);
+    if(filtro.statusPagamento==="pago" && !f.paga) return false;
+    if(filtro.statusPagamento==="pendente" && (f.paga || f.atrasada)) return false;
+    if(filtro.statusPagamento==="atrasada" && !f.atrasada) return false;
+    if(filtro.search && !([f.numero_fatura, f.atividade_nome, f.descricao, f.responsavel_recebimento_nome].join(" ").toLowerCase().includes(filtro.search))) return false;
+    return true;
+  });
+
+  const somaTotal = FATURAS.reduce((s,f)=>s+Number(f.valor_total||0), 0);
+  const somaLiquido = FATURAS.reduce((s,f)=>s+Number(f.valor_liquido||0), 0);
+  const qtdPendentes = FATURAS.filter(f=>!f.paga).length;
+  const qtdAtrasadas = FATURAS.filter(f=>f.atrasada).length;
+  $("fat-kpis").innerHTML = [
+    {l:"Faturas", v:FATURAS.length},
+    {l:"Valor total", v:fmtMoeda(somaTotal)},
+    {l:"Valor líquido", v:fmtMoeda(somaLiquido)},
+    {l:"Pendentes de pagamento", v:qtdPendentes},
+    {l:"Atrasadas", v:qtdAtrasadas},
+  ].map(k=>`<div class="kpi"><div class="label">${k.l}</div><div class="value">${k.v}</div></div>`).join("");
+
+  $("fat-tbody").innerHTML = list.length ? list.map(f=>{
+    const st = fatStatusPagamento(f);
+    const receb = f.responsavel_recebimento_recurso_id
+      ? `${esc(f.responsavel_recebimento_nome)}${f.responsavel_recebimento_cargo?" · "+esc(f.responsavel_recebimento_cargo):""}`
+      : `${esc(f.responsavel_recebimento_nome||"—")}${f.responsavel_recebimento_cargo?" · "+esc(f.responsavel_recebimento_cargo):""} <span class="muted">(sem cadastro)</span>`;
+    return `<tr class="clickable" data-id="${f.id}">
+      <td class="mono">${esc(f.numero_fatura)}</td>
+      <td>${esc(f.atividade_nome)}${f.atividade_codigo_wbs?`<div class="muted" style="font-size:11px;">WBS: ${esc(f.atividade_codigo_wbs)}</div>`:""}</td>
+      <td>${fmtDate(f.data_emissao)}</td>
+      <td>${fmtDate(f.data_envio)}</td>
+      <td>${fmtDate(f.data_pagamento_previsao)} / ${fmtDate(f.data_pagamento)}</td>
+      <td>${fmtMoeda(f.valor_total)}</td>
+      <td>${fmtMoeda(f.impostos)}</td>
+      <td>${fmtMoeda(f.valor_liquido)}</td>
+      <td>${receb}</td>
+      <td>${pill(st.label, st.kind)}</td>
+    </tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="10">Nenhuma fatura encontrada.</td></tr>`;
+  $("fat-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>openFaturaModal(byId(FATURAS, tr.dataset.id)));
+  });
+}
+["fat-search","fat-status-pagamento"].forEach(id=>{
+  document.addEventListener("DOMContentLoaded", ()=>{ $(id).addEventListener("input", renderFaturas); $(id).addEventListener("change", renderFaturas); });
+});
+function wireFaturaFiltros(){ /* listeners já ligados via DOMContentLoaded acima; função mantida por padronização com as demais telas */ }
+
+let editingFaturaId = null;
+
+function wireFaturaModal(){
+  $("btn-new-fatura").addEventListener("click", ()=>openFaturaModal(null));
+  $("fat-close").addEventListener("click", closeFaturaModal);
+  $("fat-cancel").addEventListener("click", closeFaturaModal);
+  $("overlay-fatura").addEventListener("click", e=>{ if(e.target.id==="overlay-fatura") closeFaturaModal(); });
+  $("fat-save").addEventListener("click", saveFatura);
+
+  $("fat-receb-modo-recurso").addEventListener("change", atualizarModoRecebimentoFatura);
+  $("fat-receb-modo-nome").addEventListener("change", atualizarModoRecebimentoFatura);
+  $("fat-receb-recurso").addEventListener("change", ()=>{
+    const r = byId(RECURSOS, $("fat-receb-recurso").value);
+    $("fat-receb-cargo").value = r?.cargo || "";
+  });
+  ["fat-valor-total","fat-impostos"].forEach(id=>$(id).addEventListener("input", atualizarValorLiquidoFatura));
+}
+
+// Alterna entre "recurso cadastrado" (select, cargo travado/automático) e
+// "nome livre" (texto, cargo digitável) — pedido explícito do usuário: o
+// cargo só "alimenta de forma automática" quando o responsável É um recurso.
+function atualizarModoRecebimentoFatura(){
+  const modoRecurso = $("fat-receb-modo-recurso").checked;
+  $("fat-receb-recurso").hidden = !modoRecurso;
+  $("fat-receb-nome").hidden = modoRecurso;
+  $("fat-receb-cargo").disabled = modoRecurso;
+  if(modoRecurso){
+    const r = byId(RECURSOS, $("fat-receb-recurso").value);
+    $("fat-receb-cargo").value = r?.cargo || "";
+  }
+}
+
+function atualizarValorLiquidoFatura(){
+  const total = Number($("fat-valor-total").value || 0);
+  const impostos = Number($("fat-impostos").value || 0);
+  $("fat-valor-liquido").value = fmtMoeda(total - impostos);
+}
+
+function openFaturaModal(f){
+  editingFaturaId = f ? f.id : null;
+  $("fat-modal-title").textContent = f ? "Editar fatura" : "Nova fatura";
+  $("fat-numero").value = f?.numero_fatura || "";
+  $("fat-atividade").value = f?.atividade_id || "";
+  $("fat-data-emissao").value = f?.data_emissao || "";
+  $("fat-data-envio").value = f?.data_envio || "";
+  $("fat-data-prev-pagto").value = f?.data_pagamento_previsao || "";
+  $("fat-data-pagto").value = f?.data_pagamento || "";
+  $("fat-descricao").value = f?.descricao || "";
+  $("fat-resp-entrega").value = f?.responsavel_entrega_id || "";
+
+  const temRecursoRecebimento = !!f?.responsavel_recebimento_recurso_id;
+  $("fat-receb-modo-recurso").checked = !f || temRecursoRecebimento;
+  $("fat-receb-modo-nome").checked = !!f && !temRecursoRecebimento;
+  $("fat-receb-recurso").value = f?.responsavel_recebimento_recurso_id || "";
+  $("fat-receb-nome").value = (!temRecursoRecebimento && f?.responsavel_recebimento_nome) || "";
+  $("fat-receb-cargo").value = f?.responsavel_recebimento_cargo || "";
+  atualizarModoRecebimentoFatura();
+
+  $("fat-valor-total").value = f?.valor_total ?? "";
+  $("fat-impostos").value = f?.impostos ?? 0;
+  atualizarValorLiquidoFatura();
+
+  $("overlay-fatura").hidden = false;
+}
+
+function closeFaturaModal(){ $("overlay-fatura").hidden = true; editingFaturaId = null; }
+
+async function saveFatura(){
+  const modoRecurso = $("fat-receb-modo-recurso").checked;
+  const data = {
+    numero_fatura: $("fat-numero").value.trim(),
+    atividade_id: $("fat-atividade").value || null,
+    data_emissao: $("fat-data-emissao").value || null,
+    data_envio: $("fat-data-envio").value || null,
+    data_pagamento_previsao: $("fat-data-prev-pagto").value || null,
+    data_pagamento: $("fat-data-pagto").value || null,
+    descricao: $("fat-descricao").value.trim() || null,
+    responsavel_entrega_id: $("fat-resp-entrega").value || null,
+    responsavel_recebimento_recurso_id: modoRecurso ? ($("fat-receb-recurso").value || null) : null,
+    responsavel_recebimento_nome: modoRecurso ? null : $("fat-receb-nome").value.trim(),
+    responsavel_recebimento_cargo: modoRecurso ? null : $("fat-receb-cargo").value.trim(),
+    valor_total: Number($("fat-valor-total").value || 0),
+    impostos: Number($("fat-impostos").value || 0),
+  };
+  if(!data.numero_fatura || !data.atividade_id || !data.responsavel_entrega_id){
+    toast("Informe número da fatura, atividade (entregável) e responsável pela entrega.", true); return;
+  }
+  if(modoRecurso && !data.responsavel_recebimento_recurso_id){
+    toast("Selecione o recurso responsável pelo recebimento, ou troque para \"nome livre\".", true); return;
+  }
+  if(!modoRecurso && !data.responsavel_recebimento_nome){
+    toast("Informe o nome do responsável pelo recebimento.", true); return;
+  }
+  if(!editingFaturaId) data.projeto_id = PROJETO.id;
+  try{
+    if(editingFaturaId) await api(`/faturas/${editingFaturaId}`, {method:"PUT", body: JSON.stringify(data)});
+    else await api("/faturas", {method:"POST", body: JSON.stringify(data)});
+    await loadFaturas(); renderFaturas(); closeFaturaModal(); toast("Fatura salva.");
+  }catch(e){}
+}
+
 // ================= MODAL PROJETO =================
 // projetoModalModo: "initial" (nenhum projeto existe ainda — cadastro forçado,
 // não dá pra fechar sem salvar), "editar" (editando o projeto ativo) ou
@@ -2483,6 +2751,7 @@ function openProjetoModal(modo){
 
   $("proj-sigla").value = p?.sigla || "";
   $("proj-prazo-meses").value = p?.prazo_total_meses ?? "";
+  $("proj-valor-contrato").value = p?.valor_global_contrato ?? "";
   $("proj-nome").value = p?.nome || "";
   $("proj-instituicao").value = p?.cliente || "";
   $("proj-descricao").value = p?.descricao || "";
@@ -2525,6 +2794,7 @@ async function saveProjeto(){
     data_inicio_real: $("proj-data-inicio-real").value || null,
     data_fim_prevista: $("proj-data-fim").value || null,
     prazo_total_meses: $("proj-prazo-meses").value ? Number($("proj-prazo-meses").value) : null,
+    valor_global_contrato: $("proj-valor-contrato").value ? Number($("proj-valor-contrato").value) : null,
   };
   if(!data.nome || !data.cliente){ toast("Informe ao menos o nome do projeto e a instituição.", true); return; }
   const criando = projetoModalModo !== "editar";
@@ -3268,6 +3538,7 @@ function renderProjetoPane(){
   $("cfg-projeto-inicio").textContent = fmtDate(PROJETO.data_inicio);
   $("cfg-projeto-fim").textContent = fmtDate(PROJETO.data_fim_prevista);
   $("cfg-projeto-prazo").textContent = PROJETO.prazo_total_meses != null ? `${PROJETO.prazo_total_meses} meses` : "—";
+  $("cfg-projeto-valor-contrato").textContent = fmtMoeda(PROJETO.valor_global_contrato);
 }
 
 function renderConfigTable(){

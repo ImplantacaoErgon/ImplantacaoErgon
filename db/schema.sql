@@ -78,6 +78,9 @@ CREATE TABLE projetos (
   data_inicio_real    date,
   data_fim_prevista   date,
   prazo_total_meses   numeric(5,1),               -- prazo contratual total, em meses
+  valor_global_contrato numeric(14,2),             -- valor global do contrato (migração 018) — referência para
+                                       -- acompanhamento de faturamento; não é somado/derivado automaticamente
+                                       -- do valor das faturas emitidas, é digitado direto no cadastro do projeto
   horas_dia_util  numeric(4,1) NOT NULL DEFAULT 8.0,   -- jornada padrão p/ conversão horas->dias no CPM
   criado_em       timestamptz NOT NULL DEFAULT now(),
   atualizado_em   timestamptz NOT NULL DEFAULT now()
@@ -1010,6 +1013,51 @@ CREATE TABLE requisito_referencia_manual (
 );
 CREATE INDEX idx_requisito_referencia_requisito ON requisito_referencia_manual(requisito_id);
 COMMENT ON TABLE requisito_referencia_manual IS 'Referências (manual + página + trecho) encontradas ou cadastradas manualmente pra cada requisito, na tela Analisar Requisitos. origem=busca (achada pela busca por palavra-chave) ou manual (adicionada à mão pelo consultor).';
+
+-- ============================================================================
+-- 22. FATURAS  (faturamento dos entregáveis do cronograma)
+-- ============================================================================
+-- Uma fatura está sempre atrelada a UMA atividade do cronograma marcada como
+-- entregável (atividades.eh_entregavel = true — 26ª rodada); essa checagem é
+-- feita no backend, não é um CHECK de banco (exigiria trigger pra olhar outra
+-- tabela). responsavel_entrega_id precisa ser um recurso Techne (idem,
+-- checado no backend). responsavel_recebimento pode ser um recurso cadastrado
+-- (normalmente do cliente) OU só um nome digitado de alguém do cliente sem
+-- cadastro — por isso responsavel_recebimento_nome/cargo são sempre
+-- preenchidos como um "retrato" congelado no momento do salvamento (copiados
+-- automaticamente do cadastro do recurso quando há um vinculado, ou digitados
+-- livremente quando não há), e responsavel_recebimento_recurso_id usa
+-- ON DELETE SET NULL — a fatura preserva nome/cargo mesmo que esse recurso
+-- seja excluído depois, mesmo princípio já usado em
+-- requisito_referencia_manual.manual_id/manual_nome.
+CREATE TABLE faturas (
+  id                                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  projeto_id                          uuid NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
+  atividade_id                        uuid NOT NULL REFERENCES atividades(id),  -- precisa ser um entregável (checado no backend)
+  numero_fatura                       text NOT NULL,             -- alfanumérico (nº da nota fiscal/fatura)
+  data_emissao                        date,
+  data_envio                          date,
+  data_pagamento_previsao             date,
+  data_pagamento                      date,
+  descricao                           text,
+  responsavel_entrega_id              uuid NOT NULL REFERENCES recursos(id),   -- precisa ser recurso Techne (checado no backend)
+  responsavel_recebimento_recurso_id  uuid REFERENCES recursos(id) ON DELETE SET NULL,
+  responsavel_recebimento_nome        text,   -- nome do responsável pelo recebimento — copiado automaticamente do
+                                       -- recurso vinculado, ou digitado livremente quando não há recurso cadastrado
+  responsavel_recebimento_cargo       text,   -- idem: copiado automaticamente do cargo do recurso, ou digitado
+  valor_total                         numeric(14,2) NOT NULL DEFAULT 0,
+  impostos                            numeric(14,2) NOT NULL DEFAULT 0,
+  valor_liquido                       numeric(14,2) GENERATED ALWAYS AS (valor_total - impostos) STORED,
+  criado_em                           timestamptz NOT NULL DEFAULT now(),
+  atualizado_em                       timestamptz NOT NULL DEFAULT now(),
+  CHECK (responsavel_recebimento_recurso_id IS NOT NULL OR responsavel_recebimento_nome IS NOT NULL),
+  UNIQUE (projeto_id, numero_fatura)
+);
+CREATE INDEX idx_faturas_projeto ON faturas(projeto_id);
+CREATE INDEX idx_faturas_atividade ON faturas(atividade_id);
+CREATE TRIGGER trg_faturas_atualizado_em BEFORE UPDATE ON faturas
+  FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
+COMMENT ON TABLE faturas IS 'Faturas emitidas para os entregáveis do cronograma (atividades.eh_entregavel = true), com prazos de envio/pagamento e valores. valor_liquido é sempre valor_total - impostos, calculado pelo próprio Postgres.';
 
 -- ============================================================================
 -- Views de apoio a relatórios

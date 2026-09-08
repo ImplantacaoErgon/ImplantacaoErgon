@@ -48,7 +48,7 @@ PROJETO_FIELDS = [
     "sigla", "nome", "cliente", "descricao", "fiscal_projeto", "gestor_projeto",
     "gerente_projeto_cliente", "gerente_projeto_techne", "lider_projeto_techne",
     "data_abertura", "data_inicio", "data_inicio_real", "data_fim_prevista",
-    "prazo_total_meses", "horas_dia_util",
+    "prazo_total_meses", "valor_global_contrato", "horas_dia_util",
 ]
 
 # Parâmetros do site (Configurações > Parâmetros): logo + nome da empresa,
@@ -133,6 +133,18 @@ RISCO_FIELDS = ["projeto_id", "descricao", "categoria", "probabilidade", "impact
                 "responsavel_id", "status", "identificado_em"]
 CICLO_FIELDS = ["atividade_id", "numero_ciclo", "data_execucao", "qtd_registros_extraidos",
                 "qtd_registros_carregados", "qtd_rejeicoes", "observacoes"]
+# valor_liquido NÃO entra aqui — é coluna GENERATED (valor_total - impostos), o
+# próprio Postgres calcula, nunca é inserida/atualizada diretamente. nome/cargo
+# do responsável pelo recebimento entram aqui porque também podem ser digitados
+# livremente (sem recurso vinculado) — ver preparar_fatura(), que sobrescreve
+# os dois automaticamente quando responsavel_recebimento_recurso_id é informado.
+FATURA_FIELDS = [
+    "projeto_id", "atividade_id", "numero_fatura",
+    "data_emissao", "data_envio", "data_pagamento_previsao", "data_pagamento", "descricao",
+    "responsavel_entrega_id",
+    "responsavel_recebimento_recurso_id", "responsavel_recebimento_nome", "responsavel_recebimento_cargo",
+    "valor_total", "impostos",
+]
 
 ATIVIDADE_SELECT = """
 SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
@@ -155,6 +167,20 @@ JOIN etapas e ON e.id = a.etapa_id
 JOIN frentes_trabalho f ON f.id = a.frente_trabalho_id
 LEFT JOIN tipos_atividade_elementar t ON t.id = a.tipo_atividade_elementar_id
 LEFT JOIN requisitos_tr rq ON rq.id = a.requisito_tr_id
+"""
+
+FATURA_SELECT = """
+SELECT f.*,
+       p.nome AS projeto_nome, p.sigla AS projeto_sigla,
+       a.nome AS atividade_nome, a.codigo_wbs AS atividade_codigo_wbs,
+       re.nome AS responsavel_entrega_nome,
+       (f.data_pagamento IS NOT NULL) AS paga,
+       (f.data_pagamento IS NULL AND f.data_pagamento_previsao IS NOT NULL
+        AND f.data_pagamento_previsao < CURRENT_DATE) AS atrasada
+FROM faturas f
+JOIN projetos p ON p.id = f.projeto_id
+JOIN atividades a ON a.id = f.atividade_id
+JOIN recursos re ON re.id = f.responsavel_entrega_id
 """
 
 
@@ -192,6 +218,58 @@ def upsert_requisitos(projeto_id, linhas):
     )
     db.execute(sql, timeout=120)
     return inseridos, atualizados
+
+
+def preparar_fatura(data, projeto_id):
+    """Valida e normaliza (in place) os dados de uma fatura antes de
+    inserir/atualizar — usada por create_fatura/update_fatura. Levanta
+    ValueError com uma mensagem amigável quando a regra de negócio não é
+    atendida (o chamador converte em 400).
+
+    Regras (26ª/27ª rodadas, pedidas explicitamente pelo usuário):
+    - a atividade vinculada precisa pertencer ao mesmo projeto da fatura e
+      estar marcada como entregável (atividades.eh_entregavel = true);
+    - o responsável pela entrega precisa ser um recurso Techne;
+    - o responsável pelo recebimento pode ser um recurso cadastrado (nesse
+      caso nome/cargo são copiados automaticamente do cadastro, sempre —
+      qualquer nome/cargo enviado pelo front-end é ignorado) ou, na
+      ausência de um recurso vinculado, um nome digitado livremente (usado
+      pra gente do cliente sem cadastro no sistema); um dos dois é sempre
+      obrigatório.
+    """
+    if data.get("atividade_id"):
+        ativ = db.fetch_one(
+            f"SELECT projeto_id, eh_entregavel FROM atividades WHERE id = {db.q(data['atividade_id'])}"
+        )
+        if not ativ:
+            raise ValueError("Atividade não encontrada.")
+        if ativ["projeto_id"] != projeto_id:
+            raise ValueError("A atividade informada não pertence a este projeto.")
+        if not ativ["eh_entregavel"]:
+            raise ValueError('Só é possível vincular a fatura a uma atividade marcada como "Entregável".')
+
+    if data.get("responsavel_entrega_id"):
+        rec = db.fetch_one(
+            f"SELECT tipo_vinculo FROM recursos WHERE id = {db.q(data['responsavel_entrega_id'])}"
+        )
+        if not rec:
+            raise ValueError("Responsável pela entrega não encontrado.")
+        if rec["tipo_vinculo"] != "Techne":
+            raise ValueError("O responsável pela entrega precisa ser um recurso Techne.")
+
+    recurso_receb_id = data.get("responsavel_recebimento_recurso_id")
+    if recurso_receb_id:
+        rec = db.fetch_one(f"SELECT nome, cargo FROM recursos WHERE id = {db.q(recurso_receb_id)}")
+        if not rec:
+            raise ValueError("Responsável pelo recebimento (recurso) não encontrado.")
+        data["responsavel_recebimento_nome"] = rec["nome"]
+        data["responsavel_recebimento_cargo"] = rec["cargo"] or ""
+    else:
+        data["responsavel_recebimento_recurso_id"] = None
+        if not (data.get("responsavel_recebimento_nome") or "").strip():
+            raise ValueError(
+                "Informe o responsável pelo recebimento: um recurso cadastrado ou o nome de uma pessoa do cliente."
+            )
 
 
 def insert_row(table, data, allowed):
@@ -1203,6 +1281,65 @@ def create_app():
             f"DELETE FROM requisito_referencia_manual WHERE id = {db.q(ref_id)} AND requisito_id = {db.q(id)}"
         )
         return "", 204
+
+    # ----------------------------------------------------------------- faturas
+    # (27ª rodada) — faturamento dos entregáveis do cronograma. Filtro
+    # projeto_id/atividade_id são os únicos no backend; filtro por texto e por
+    # status de pagamento (pago/pendente/atrasada, já vem calculado como
+    # paga/atrasada no SELECT) é feito no front-end, mesmo padrão já usado em
+    # Cronograma/Analisar Requisitos.
+    @app.get("/api/faturas")
+    def list_faturas():
+        args = request.args
+        where = []
+        if args.get("projeto_id"):
+            where.append(f"f.projeto_id = {db.q(args['projeto_id'])}")
+        if args.get("atividade_id"):
+            where.append(f"f.atividade_id = {db.q(args['atividade_id'])}")
+        sql = FATURA_SELECT
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY f.data_emissao DESC NULLS LAST, f.criado_em DESC"
+        return jsonify(db.fetch_all(sql))
+
+    @app.get("/api/faturas/<id>")
+    def get_fatura(id):
+        row = db.fetch_one(FATURA_SELECT + f" WHERE f.id = {db.q(id)}")
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.post("/api/faturas")
+    def create_fatura():
+        data = request.get_json(force=True)
+        obrigatorios = ["projeto_id", "atividade_id", "numero_fatura", "responsavel_entrega_id"]
+        faltando = [c for c in obrigatorios if not data.get(c)]
+        if faltando:
+            return jsonify({"erro": "Informe projeto, número da fatura, atividade e responsável pela entrega."}), 400
+        try:
+            preparar_fatura(data, data["projeto_id"])
+        except ValueError as e:
+            return jsonify({"erro": str(e)}), 400
+        return jsonify(insert_row("faturas", data, FATURA_FIELDS)), 201
+
+    @app.put("/api/faturas/<id>")
+    def update_fatura(id):
+        atual = db.fetch_one(f"SELECT projeto_id FROM faturas WHERE id = {db.q(id)}")
+        if not atual:
+            abort(404)
+        data = request.get_json(force=True)
+        try:
+            preparar_fatura(data, atual["projeto_id"])
+        except ValueError as e:
+            return jsonify({"erro": str(e)}), 400
+        row = patch_row("faturas", id, data, FATURA_FIELDS)
+        if not row:
+            abort(404)
+        return jsonify(row)
+
+    @app.delete("/api/faturas/<id>")
+    def delete_fatura(id):
+        return delete_row("faturas", id)
 
     # ----------------------------------------------------------- ciclos migração
     @app.get("/api/ciclos-migracao")
