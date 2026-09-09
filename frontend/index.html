@@ -98,6 +98,13 @@
   }
   .tab-group.open .tab-group-menu{display:flex;}
   .tab-group-menu button{width:100%;text-align:left;border-radius:7px;white-space:nowrap;}
+  /* Dentro de .modal-tabs (ex.: Configurações > Cronograma) os botões de aba
+     usam sublinhado em vez de fundo (ver regra .modal-tabs button abaixo) —
+     dentro do submenu isso fica estranho (parece link, não item de menu), então
+     sobrescreve pra manter o mesmo estilo "pill" usado no menu principal. */
+  .modal-tabs .tab-group-menu button{border-bottom:none;padding:8px 12px;}
+  .modal-tabs .tab-group-menu button:hover{background:var(--surface-2);color:var(--text);}
+  .modal-tabs .tab-group-menu button.active{background:var(--accent-soft);color:var(--accent-strong);border-bottom-color:transparent;}
 
   main{max-width:1400px;margin:0 auto;padding:20px 22px 64px;}
   .view{display:none;}
@@ -368,19 +375,21 @@
     <nav class="tabs" id="tabs">
       <button data-view="dashboard" class="active">Dashboard</button>
       <div class="tab-group" data-group>
-        <button type="button" class="tab-group-trigger" data-views="cronograma,critico,riscos">Cronograma <span class="caret">▾</span></button>
+        <button type="button" class="tab-group-trigger" data-views="cronograma,critico,riscos,calendario">Cronograma <span class="caret">▾</span></button>
         <div class="tab-group-menu">
           <button data-view="cronograma">Cronograma</button>
           <button data-view="critico">Caminho Crítico</button>
           <button data-view="riscos">Riscos &amp; Marcos</button>
+          <button data-view="calendario">📅 Calendário de Feriados</button>
         </div>
       </div>
       <button data-view="minhas-atividades">Minhas atividades</button>
       <button data-view="faturas">💵 Faturas</button>
       <div class="tab-group" data-group>
-        <button type="button" class="tab-group-trigger" data-views="requisitos,analisar-requisitos">Requisitos TR <span class="caret">▾</span></button>
+        <button type="button" class="tab-group-trigger" data-views="requisitos,manuais,analisar-requisitos">Requisitos TR <span class="caret">▾</span></button>
         <div class="tab-group-menu">
           <button data-view="requisitos">Requisitos TR</button>
+          <button data-view="manuais">📚 Manuais do Sistema</button>
           <button data-view="analisar-requisitos">🔍 Analisar Requisitos</button>
         </div>
       </div>
@@ -550,9 +559,9 @@
   <!-- ============ ANALISAR REQUISITOS (25ª rodada) ============ -->
   <section class="view" id="view-analisar-requisitos">
     <h2 class="view-title">Analisar Requisitos</h2>
-    <div class="view-sub">Busca por palavra-chave (sem inteligência artificial) nos manuais do sistema cadastrados em Configurações, sugerindo manual e página como referência para cada requisito do TR — sempre um candidato para revisão do consultor, nunca uma resposta automática.</div>
+    <div class="view-sub">Busca por palavra-chave (sem inteligência artificial) nos manuais do sistema cadastrados em Requisitos TR → Manuais do Sistema, sugerindo manual e página como referência para cada requisito do TR — sempre um candidato para revisão do consultor, nunca uma resposta automática.</div>
     <div class="card" id="ar-sem-manuais" hidden style="margin-bottom:16px;">
-      Nenhum manual do sistema ativo cadastrado ainda. Cadastre em <strong>Configurações → 📚 Manuais do Sistema</strong> antes de analisar os requisitos.
+      Nenhum manual do sistema ativo cadastrado ainda. Cadastre em <strong>Requisitos TR → 📚 Manuais do Sistema</strong> antes de analisar os requisitos.
     </div>
     <div class="kpis" id="ar-kpis"></div>
     <div class="filters">
@@ -649,19 +658,27 @@
   </section>
 
   <!-- ============ CONFIGURAÇÕES ============ -->
+  <!-- Calendário de Feriados e Manuais do Sistema (31ª rodada) saíram da barra
+       de abas abaixo e passaram a ser acessados pelos grupos "Cronograma" e
+       "Requisitos TR" do menu principal — mas continuam sendo, por baixo dos
+       panos, abas deste mesmo cfg-tabs/cfgAbaAtual (ver goToView/VIEW_ALIAS),
+       só que sem botão visível aqui, pra não duplicar o ponto de acesso. -->
   <section class="view" id="view-configuracoes">
-    <h2 class="view-title">Configurações</h2>
-    <div class="view-sub">Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários, calendário de feriados e parâmetros do site.</div>
+    <h2 class="view-title" id="cfg-view-title">Configurações</h2>
+    <div class="view-sub" id="cfg-view-sub">Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.</div>
     <div class="modal-tabs" id="cfg-tabs" style="border:none;padding:0;margin-bottom:16px;">
       <button data-cfg="projeto" class="active">Dados do Projeto</button>
-      <button data-cfg="responsaveis">Recursos</button>
-      <button data-cfg="etapas">Etapas</button>
-      <button data-cfg="frentes">Frentes de Trabalho</button>
-      <button data-cfg="tipos">Tipos de Atividade Elementar</button>
-      <button data-cfg="calendario">📅 Calendário de Feriados</button>
+      <div class="tab-group" data-group>
+        <button type="button" class="tab-group-trigger" data-cfgs="responsaveis,etapas,frentes,tipos">Cronograma <span class="caret">▾</span></button>
+        <div class="tab-group-menu">
+          <button data-cfg="responsaveis">Recursos</button>
+          <button data-cfg="etapas">Etapas</button>
+          <button data-cfg="frentes">Frentes de Trabalho</button>
+          <button data-cfg="tipos">Tipos de Atividade Elementar</button>
+        </div>
+      </div>
       <button data-cfg="usuarios">Usuários</button>
       <button data-cfg="parametros">Parâmetros</button>
-      <button data-cfg="manuais">📚 Manuais do Sistema</button>
       <button data-cfg="documentacao">📄 Documentação</button>
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;" id="cfg-add-wrap">
@@ -1916,6 +1933,12 @@ function wireDashboardRefresh(){
     }
   });
 }
+// "calendario" e "manuais" (31ª rodada) não têm section própria — são abas de
+// dentro de Configurações (cfgAbaAtual) acessadas agora pelos grupos
+// "Cronograma" e "Requisitos TR" do menu, em vez de por um botão dentro da
+// própria tela de Configurações. VIEW_ALIAS mapeia qual section de verdade
+// mostrar; goToView cuida de também selecionar a aba certa dentro dela.
+const VIEW_ALIAS = { calendario: "configuracoes", manuais: "configuracoes" };
 function goToView(view){
   document.querySelectorAll("nav.tabs button[data-view]").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
   // Gatilho do grupo (ex.: "Cronograma ▾") fica destacado quando a view atual
@@ -1924,10 +1947,26 @@ function goToView(view){
     const views=(t.dataset.views||"").split(",");
     t.classList.toggle("active", views.includes(view));
   });
-  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+view));
+  const viewReal = VIEW_ALIAS[view] || view;
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.id==="view-"+viewReal));
   if(view==="critico") loadCaminhoCritico();
   if(view==="minhas-atividades") carregarMinhasAtividades();
   if(view==="analisar-requisitos") renderAnalisarRequisitos();
+  if(view==="calendario" || view==="manuais"){
+    // Nenhum botão/gatilho de #cfg-tabs corresponde a "calendario"/"manuais"
+    // (foram retirados de lá nesta rodada) — destacarCfgTabs() (chamada por
+    // dentro de renderConfigTable) naturalmente não marca nada como ativo
+    // nesse caso, o que é o comportamento certo.
+    cfgAbaAtual = view;
+    renderConfigTable();
+  } else if(view==="configuracoes" && (cfgAbaAtual==="calendario" || cfgAbaAtual==="manuais")){
+    // Voltando para "⚙ Configurações" direto (não pelo Cronograma/Requisitos
+    // TR) enquanto a aba interna ainda estava em calendario/manuais — como
+    // elas não aparecem mais na barra de abas daqui, volta pro padrão (Dados
+    // do Projeto) em vez de continuar mostrando um conteúdo sem aba destacada.
+    cfgAbaAtual = "projeto";
+    renderConfigTable();
+  }
 }
 
 // ================= ATIVIDADES: carregar/filtrar =================
@@ -3541,10 +3580,22 @@ function cfgDados(aba){
 }
 
 function wireConfiguracoes(){
+  // Mesmo padrão de grupo com submenu do menu principal (fecharTabGroups() é
+  // genérica, já definida em wireNav() — ver 30ª/31ª rodada): clique no
+  // gatilho só abre/fecha; clique numa aba de verdade (solta, ou dentro do
+  // submenu "Cronograma") seleciona e fecha qualquer grupo aberto.
   $("cfg-tabs").addEventListener("click", e=>{
+    const trigger = e.target.closest(".tab-group-trigger");
+    if(trigger){
+      const grupo = trigger.closest(".tab-group");
+      const abrir = !grupo.classList.contains("open");
+      fecharTabGroups(null);
+      grupo.classList.toggle("open", abrir);
+      return;
+    }
     const b = e.target.closest("button[data-cfg]"); if(!b) return;
+    fecharTabGroups(null);
     cfgAbaAtual = b.dataset.cfg;
-    document.querySelectorAll("#cfg-tabs button").forEach(x=>x.classList.toggle("active", x===b));
     renderConfigTable();
   });
   $("cfg-add").addEventListener("click", ()=>openConfigModal(null));
@@ -3573,7 +3624,7 @@ function wireConfiguracoes(){
   $("dupcal-confirmar").addEventListener("click", confirmarDuplicarCalendario);
 }
 
-// ================= Duplicar feriados (Configurações > Calendário de Feriados) =================
+// ================= Duplicar feriados (Cronograma > Calendário de Feriados) =================
 // Copia os feriados do projeto ativo para um ou mais projetos escolhidos numa
 // lista de checkboxes — útil quando dois projetos ficam em cidades/estados
 // diferentes e têm calendários de feriado parecidos, mas não idênticos. A
@@ -3626,11 +3677,38 @@ function renderProjetoPane(){
   $("cfg-projeto-valor-contrato").textContent = fmtMoeda(PROJETO.valor_global_contrato);
 }
 
+// Título/subtítulo da tela de Configurações quando ela é aberta pelas rotas
+// "de fora" (Cronograma > Calendário de Feriados, Requisitos TR > Manuais do
+// Sistema — 31ª rodada) — sem isso a tela continuaria dizendo "Configurações"
+// mesmo quando a pessoa clicou em Cronograma ou Requisitos TR pra chegar nela.
+const CFG_ABA_TITULOS = {
+  calendario: {titulo:"📅 Calendário de Feriados", sub:"Dias não úteis do projeto (feriados, recessos, pontos facultativos) — usados no cálculo do Caminho Crítico e na distribuição das horas previstas em Minhas Atividades."},
+  manuais: {titulo:"📚 Manuais do Sistema", sub:"Catálogo de manuais do Ergon (PDFs), único e compartilhado entre todos os projetos — usados na busca por referência da tela Analisar Requisitos."},
+};
+const CFG_TITULO_PADRAO = "Configurações";
+const CFG_SUB_PADRAO = "Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.";
+// Destaque das abas de #cfg-tabs é decidido inteiramente aqui, num só lugar
+// (em vez de cada chamador mexer em classList "active" na mão) — cfgAbaAtual
+// muda por três caminhos diferentes (clique direto em #cfg-tabs, clique no
+// grupo "Cronograma" de dentro de #cfg-tabs, e o alias vindo do menu principal
+// pra calendario/manuais — ver goToView) e cada um tem que resultar no mesmo
+// destaque correto, então centralizar aqui evita os três ficarem dessincronizados.
+function destacarCfgTabs(){
+  document.querySelectorAll("#cfg-tabs button[data-cfg]").forEach(x=>x.classList.toggle("active", x.dataset.cfg===cfgAbaAtual));
+  document.querySelectorAll("#cfg-tabs .tab-group-trigger").forEach(t=>{
+    const cfgs=(t.dataset.cfgs||"").split(",");
+    t.classList.toggle("active", cfgs.includes(cfgAbaAtual));
+  });
+}
 function renderConfigTable(){
+  destacarCfgTabs();
   const ehParametros = cfgAbaAtual === "parametros";
   const ehProjeto = cfgAbaAtual === "projeto";
   const ehDocumentacao = cfgAbaAtual === "documentacao";
   const ehManuais = cfgAbaAtual === "manuais";
+  const tituloInfo = CFG_ABA_TITULOS[cfgAbaAtual];
+  $("cfg-view-title").textContent = tituloInfo ? tituloInfo.titulo : CFG_TITULO_PADRAO;
+  $("cfg-view-sub").textContent = tituloInfo ? tituloInfo.sub : CFG_SUB_PADRAO;
   $("cfg-add-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
   $("cfg-table-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
   $("cfg-parametros-pane").hidden = !ehParametros;
@@ -3901,7 +3979,7 @@ function wireParametros(){
   });
 }
 
-// ================= Manuais do Sistema (Configurações) =================
+// ================= Manuais do Sistema (Requisitos TR > Manuais do Sistema) =================
 // Catálogo GLOBAL (não por projeto) de PDFs usados na busca por palavra-chave
 // da tela Analisar Requisitos — ver app/manuais.py. Upload multipart, mesmo
 // princípio de base64-no-banco já usado para o logo (parametros_site).
