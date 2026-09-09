@@ -680,6 +680,7 @@
       <button data-cfg="usuarios">Usuários</button>
       <button data-cfg="parametros">Parâmetros</button>
       <button data-cfg="documentacao">📄 Documentação</button>
+      <button data-cfg="auditoria">🛡️ Log de Auditoria</button>
     </div>
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;" id="cfg-add-wrap">
       <button class="btn small ghost" id="cfg-calendario-duplicar" hidden>⧉ Duplicar feriados para outro(s) projeto(s)</button>
@@ -812,6 +813,65 @@
         </div>
       </div>
     </div>
+
+    <!-- Log de Auditoria (32ª rodada): acessos (login/logout/tentativa
+         malsucedida) e alterações de dado (criação/edição/exclusão),
+         alimentado centralmente por insert_row/patch_row/delete_row e pelas
+         rotas de autenticação (ver backend/app/auditoria.py). Por padrão
+         mostra só o projeto ativo + eventos globais (recurso, tipo de
+         atividade, usuário, manual, login/logout) — ver renderAuditoriaPane(). -->
+    <div id="cfg-auditoria-pane" hidden>
+      <div class="card" style="margin-bottom:14px;">
+        <div id="aud-kpis" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;text-align:center;">
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <label style="font-size:12px;">Somente projeto ativo
+            <select id="aud-f-escopo"><option value="1">Sim</option><option value="0">Não (todos os projetos)</option></select>
+          </label>
+          <label style="font-size:12px;">Evento
+            <select id="aud-f-tipo">
+              <option value="">Todos</option>
+              <option value="login">Login</option>
+              <option value="login_falho">Tentativa de login malsucedida</option>
+              <option value="logout">Logout</option>
+              <option value="criacao">Criação</option>
+              <option value="edicao">Edição</option>
+              <option value="exclusao">Exclusão</option>
+            </select>
+          </label>
+          <label style="font-size:12px;">Entidade
+            <select id="aud-f-entidade"><option value="">Todas</option></select>
+          </label>
+          <label style="font-size:12px;">Usuário
+            <select id="aud-f-usuario"><option value="">Todos</option></select>
+          </label>
+          <label style="font-size:12px;">De
+            <input type="date" id="aud-f-inicio">
+          </label>
+          <label style="font-size:12px;">Até
+            <input type="date" id="aud-f-fim">
+          </label>
+          <label style="font-size:12px;flex:1;min-width:160px;">Buscar
+            <input type="text" id="aud-f-busca" placeholder="descrição, registro, usuário...">
+          </label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="aud-f-sensiveis"> Só sensíveis
+          </label>
+          <button class="btn small ghost" id="aud-exportar">⭳ Exportar CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Evento</th><th>Entidade</th><th>Registro</th><th>Descrição</th><th></th></tr></thead>
+          <tbody id="aud-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:14px;">
+        <button class="btn small ghost" id="aud-carregar-mais" hidden>Carregar mais</button>
+      </div>
+    </div>
   </section>
 
 </main>
@@ -894,6 +954,7 @@
       <button data-pane="dependencias">Dependências</button>
       <button data-pane="requisitos">Requisitos vinculados</button>
       <button data-pane="anexos">Anexos</button>
+      <button data-pane="historico" id="at-tab-historico">🛡️ Histórico</button>
     </div>
 
     <div class="modal-pane active" data-pane="detalhes">
@@ -1002,6 +1063,13 @@
       </div>
     </div>
 
+    <div class="modal-pane" data-pane="historico">
+      <div class="modal-body single-col">
+        <p class="muted" style="margin-top:-4px;">Criação, edições (com o antes/depois de cada campo alterado) e exclusão desta atividade.</p>
+        <div id="at-historico"></div>
+      </div>
+    </div>
+
     <div class="modal-foot">
       <button class="btn danger" id="at-delete" style="visibility:hidden;">Excluir atividade</button>
       <div style="display:flex;gap:8px;"><button class="btn secondary" id="at-cancel">Cancelar</button><button class="btn" id="at-save">Salvar</button></div>
@@ -1034,6 +1102,10 @@
       <div class="field"><label>Cobrança</label><select id="req-cobranca"><option>N/A</option><option>Sim</option><option>Não</option></select></div>
       <div class="field"><label>Data de levantamento</label><input id="req-data" type="date"></div>
       <div class="field full"><label>Observações</label><textarea id="req-observacoes"></textarea></div>
+      <div class="field full" id="req-historico-wrap" hidden>
+        <label>🛡️ Histórico</label>
+        <div id="req-historico"></div>
+      </div>
     </div>
     <div class="modal-foot">
       <span></span>
@@ -1073,6 +1145,10 @@
       <div class="field"><label>Valor total</label><input id="fat-valor-total" type="number" step="0.01" min="0"></div>
       <div class="field"><label>Impostos</label><input id="fat-impostos" type="number" step="0.01" min="0"></div>
       <div class="field"><label>Valor líquido</label><input id="fat-valor-liquido" type="text" disabled></div>
+      <div class="field full" id="fat-historico-wrap" hidden>
+        <label>🛡️ Histórico</label>
+        <div id="fat-historico"></div>
+      </div>
     </div>
     <div class="modal-foot">
       <span></span>
@@ -1671,7 +1747,7 @@ async function afterProjetoReady(){
   aplicarMarcaNoTopo();
   fillStaticSelects();
   wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
-  wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos(); wireFaturaModal(); wireFaturaFiltros();
+  wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos(); wireFaturaModal(); wireFaturaFiltros(); wireAuditoriaPane();
   setupCsvTemplateLink();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos(), loadFaturas()]);
   // Reaplica agora que REQUISITOS/ATIVIDADES já estão carregados — os selects
@@ -2411,7 +2487,9 @@ function switchPane(container, name){
 function wireAtividadeModal(){
   const modal = $("overlay-atividade");
   modal.querySelector(".modal-tabs").addEventListener("click", e=>{
-    const b=e.target.closest("button[data-pane]"); if(b) switchPane(modal, b.dataset.pane);
+    const b=e.target.closest("button[data-pane]"); if(!b) return;
+    switchPane(modal, b.dataset.pane);
+    if(b.dataset.pane === "historico" && editingAtividadeId) audRenderHistoricoRegistro("at-historico", "atividades", editingAtividadeId);
   });
   $("at-close").addEventListener("click", closeAtividadeModal);
   $("at-cancel").addEventListener("click", closeAtividadeModal);
@@ -2504,6 +2582,7 @@ function openAtividadeModal(atividade){
   $("at-relato-pend-responsavel").value=""; $("at-relato-pend-prazo").value=""; $("at-relato-pend-limite").value="";
   switchPane($("overlay-atividade"), "detalhes");
   $("overlay-atividade").hidden = false;
+  $("at-tab-historico").style.display = atividade ? "" : "none";
   if(atividade){ refreshResponsaveis(); refreshDeps(); refreshReqs(); refreshAnexos(); refreshRelatos(); }
   else {
     $("at-resp-list").innerHTML = `<li class="muted">Salve a atividade antes de adicionar recursos.</li>`;
@@ -2636,6 +2715,8 @@ function openRequisitoModal(r){
   $("req-status").value=r?.status||"Não iniciado"; $("req-cobranca").value=r?.cobranca||"N/A";
   $("req-prioridade").value=r?.prioridade||"Média"; $("req-data").value=r?.data_levantamento||"";
   $("req-observacoes").value=r?.observacoes||"";
+  $("req-historico-wrap").hidden = !r;
+  if(r) audRenderHistoricoRegistro("req-historico", "requisitos_tr", r.id);
   $("overlay-requisito").hidden=false;
 }
 function closeRequisitoModal(){ $("overlay-requisito").hidden=true; editingRequisitoId=null; }
@@ -2798,6 +2879,9 @@ function openFaturaModal(f){
   $("fat-valor-total").value = f?.valor_total ?? "";
   $("fat-impostos").value = f?.impostos ?? 0;
   atualizarValorLiquidoFatura();
+
+  $("fat-historico-wrap").hidden = !f;
+  if(f) audRenderHistoricoRegistro("fat-historico", "faturas", f.id);
 
   $("overlay-fatura").hidden = false;
 }
@@ -3684,6 +3768,7 @@ function renderProjetoPane(){
 const CFG_ABA_TITULOS = {
   calendario: {titulo:"📅 Calendário de Feriados", sub:"Dias não úteis do projeto (feriados, recessos, pontos facultativos) — usados no cálculo do Caminho Crítico e na distribuição das horas previstas em Minhas Atividades."},
   manuais: {titulo:"📚 Manuais do Sistema", sub:"Catálogo de manuais do Ergon (PDFs), único e compartilhado entre todos os projetos — usados na busca por referência da tela Analisar Requisitos."},
+  auditoria: {titulo:"🛡️ Log de Auditoria", sub:"Quem entrou, o que fez: acessos e alterações de dado do sistema, com o antes/depois de cada edição."},
 };
 const CFG_TITULO_PADRAO = "Configurações";
 const CFG_SUB_PADRAO = "Cadastros base do projeto: dados do projeto, recursos, etapas, frentes de trabalho, tipos de atividade elementar, usuários e parâmetros do site.";
@@ -3706,19 +3791,22 @@ function renderConfigTable(){
   const ehProjeto = cfgAbaAtual === "projeto";
   const ehDocumentacao = cfgAbaAtual === "documentacao";
   const ehManuais = cfgAbaAtual === "manuais";
+  const ehAuditoria = cfgAbaAtual === "auditoria";
   const tituloInfo = CFG_ABA_TITULOS[cfgAbaAtual];
   $("cfg-view-title").textContent = tituloInfo ? tituloInfo.titulo : CFG_TITULO_PADRAO;
   $("cfg-view-sub").textContent = tituloInfo ? tituloInfo.sub : CFG_SUB_PADRAO;
-  $("cfg-add-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
-  $("cfg-table-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais;
+  $("cfg-add-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais || ehAuditoria;
+  $("cfg-table-wrap").hidden = ehParametros || ehProjeto || ehDocumentacao || ehManuais || ehAuditoria;
   $("cfg-parametros-pane").hidden = !ehParametros;
   $("cfg-projeto-pane").hidden = !ehProjeto;
   $("cfg-documentacao-pane").hidden = !ehDocumentacao;
   $("cfg-manuais-pane").hidden = !ehManuais;
+  $("cfg-auditoria-pane").hidden = !ehAuditoria;
   if(ehParametros){ renderParametrosPane(); return; }
   if(ehProjeto){ renderProjetoPane(); return; }
   if(ehDocumentacao){ renderDocumentacaoPane(); return; }
   if(ehManuais){ renderManuaisPane(); return; }
+  if(ehAuditoria){ renderAuditoriaPane(); return; }
 
   const def = CONFIG_ENTIDADES[cfgAbaAtual];
   $("cfg-add").style.display = def.semCriar ? "none" : "";
@@ -3736,6 +3824,153 @@ function renderConfigTable(){
   $("cfg-tbody").querySelectorAll("tr[data-id]").forEach(tr=>{
     tr.addEventListener("click", ()=>openConfigModal(byId(cfgDados(cfgAbaAtual), tr.dataset.id)));
   });
+}
+
+// ================= Log de Auditoria (32ª rodada) =================
+// "Quem entrou, o que fez": acessos (login/logout/tentativa malsucedida) e
+// alterações de dado (criação/edição/exclusão), com diff campo a campo nas
+// edições. Alimentado no backend a partir de um único ponto por operação
+// (insert_row/patch_row/delete_row + rotas de autenticação — ver
+// backend/app/auditoria.py), então cobre praticamente todo o sistema sem
+// precisar de tela dedicada por entidade. Por padrão só o projeto ativo +
+// eventos globais (ver "Somente projeto ativo" no filtro), espelhando o
+// mesmo recorte que o resto do sistema já usa.
+const AUD_ENTIDADE_ROTULOS = {
+  projetos:"Projeto", usuarios:"Usuário", recursos:"Recurso", etapas:"Etapa",
+  frentes_trabalho:"Frente de trabalho", tipos_atividade_elementar:"Tipo de atividade elementar",
+  atividades:"Atividade", atividade_relato:"Relato de atividade",
+  atividade_dependencia:"Dependência entre atividades", requisitos_tr:"Requisito do TR",
+  manuais:"Manual do sistema", faturas:"Fatura", ciclos_migracao:"Ciclo de migração",
+  marcos:"Marco", riscos:"Risco", calendario_util:"Calendário de feriados", cronograma:"Cronograma",
+};
+const AUD_EVENTO_ROTULOS = {
+  login:"Login", login_falho:"Login malsucedido", logout:"Logout",
+  criacao:"Criação", edicao:"Edição", exclusao:"Exclusão",
+};
+const AUD_EVENTO_ICONES = {
+  login:"🔓", login_falho:"⚠️", logout:"🔒", criacao:"➕", edicao:"✎", exclusao:"🗑️",
+};
+let AUD_PAGINA = 1;
+let AUD_TOTAL = 0;
+const AUD_TAMANHO_PAGINA = 50;
+
+function audFiltrosAtuais(){
+  const f = {
+    tipo_evento: $("aud-f-tipo").value || null,
+    entidade: $("aud-f-entidade").value || null,
+    usuario_id: $("aud-f-usuario").value || null,
+    somente_sensiveis: $("aud-f-sensiveis").checked,
+    busca: $("aud-f-busca").value.trim() || null,
+    inicio: $("aud-f-inicio").value || null,
+    fim: $("aud-f-fim").value || null,
+  };
+  if($("aud-f-escopo").value === "1" && PROJETO) f.projeto_id = PROJETO.id;
+  return f;
+}
+
+function audQueryString(extra={}){
+  const f = {...audFiltrosAtuais(), ...extra};
+  const p = new URLSearchParams();
+  Object.entries(f).forEach(([k,v])=>{ if(v!==null && v!=="" && v!==false) p.set(k, v===true?"1":v); });
+  return p.toString();
+}
+
+async function renderAuditoriaPane(){
+  if(!$("aud-f-entidade").dataset.montado){
+    $("aud-f-entidade").innerHTML += Object.entries(AUD_ENTIDADE_ROTULOS)
+      .map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("");
+    $("aud-f-entidade").dataset.montado = "1";
+  }
+  if(!$("aud-f-usuario").dataset.montado){
+    $("aud-f-usuario").innerHTML += [...USUARIOS].sort((a,b)=>a.nome.localeCompare(b.nome))
+      .map(u=>`<option value="${u.id}">${esc(u.nome)}</option>`).join("");
+    $("aud-f-usuario").dataset.montado = "1";
+  }
+  AUD_PAGINA = 1;
+  await Promise.all([audCarregarKpis(), audCarregarLista(false)]);
+}
+
+async function audCarregarKpis(){
+  const qs = new URLSearchParams();
+  if($("aud-f-escopo").value === "1" && PROJETO) qs.set("projeto_id", PROJETO.id);
+  qs.set("dias", "30");
+  let r;
+  try{ r = await api(`/log-auditoria/resumo?${qs.toString()}`); }
+  catch(e){ return; }
+  const itens = [
+    ["Eventos (30 dias)", r.total_eventos],
+    ["Exclusões", r.total_exclusoes],
+    ["Sensíveis", r.total_sensiveis],
+    ["Logins malsucedidos", r.total_logins_falhos],
+    ["Usuários ativos", r.usuarios_ativos],
+  ];
+  $("aud-kpis").innerHTML = itens.map(([rotulo,valor])=>`
+    <div><div style="font-size:22px;font-weight:600;">${valor}</div><div class="muted" style="font-size:11.5px;">${esc(rotulo)}</div></div>
+  `).join("");
+}
+
+async function audCarregarLista(acumular){
+  let r;
+  try{ r = await api(`/log-auditoria?${audQueryString({pagina:AUD_PAGINA, tamanho_pagina:AUD_TAMANHO_PAGINA})}`); }
+  catch(e){ return; }
+  AUD_TOTAL = r.total;
+  const linhasHtml = r.itens.map(audLinhaHtml).join("");
+  $("aud-tbody").innerHTML = (acumular ? $("aud-tbody").innerHTML : "") + (linhasHtml || (acumular ? "" : `<tr class="empty-row"><td colspan="7">Nenhum evento encontrado com estes filtros.</td></tr>`));
+  const carregados = $("aud-tbody").querySelectorAll("tr[data-id]").length;
+  $("aud-carregar-mais").hidden = carregados >= AUD_TOTAL;
+}
+
+function audLinhaHtml(l){
+  const icone = AUD_EVENTO_ICONES[l.tipo_evento] || "•";
+  const evento = AUD_EVENTO_ROTULOS[l.tipo_evento] || l.tipo_evento;
+  const entidade = l.entidade ? (AUD_ENTIDADE_ROTULOS[l.entidade] || l.entidade) : "—";
+  return `
+    <tr data-id="${l.id}">
+      <td style="white-space:nowrap;">${fmtDateTime(l.criado_em)}</td>
+      <td>${esc(l.usuario_nome || l.usuario_email || "—")}</td>
+      <td>${icone} ${esc(evento)}</td>
+      <td>${esc(entidade)}</td>
+      <td>${esc(l.entidade_rotulo || "—")}</td>
+      <td style="max-width:420px;">${esc(l.descricao)}</td>
+      <td>${l.sensivel ? '<span class="badge" style="background:var(--danger-bg,#fde2e2);color:var(--danger,#c0392b);">Sensível</span>' : ""}</td>
+    </tr>`;
+}
+
+function wireAuditoriaPane(){
+  ["aud-f-escopo","aud-f-tipo","aud-f-entidade","aud-f-usuario","aud-f-inicio","aud-f-fim","aud-f-sensiveis"].forEach(id=>{
+    $(id).addEventListener("change", ()=>{ AUD_PAGINA = 1; audCarregarKpis(); audCarregarLista(false); });
+  });
+  let audBuscaTimer = null;
+  $("aud-f-busca").addEventListener("input", ()=>{
+    clearTimeout(audBuscaTimer);
+    audBuscaTimer = setTimeout(()=>{ AUD_PAGINA = 1; audCarregarLista(false); }, 350);
+  });
+  $("aud-carregar-mais").addEventListener("click", ()=>{ AUD_PAGINA += 1; audCarregarLista(true); });
+  $("aud-exportar").addEventListener("click", ()=>{
+    window.open(`${API}/log-auditoria/export?${audQueryString()}`, "_blank");
+  });
+}
+
+// Histórico de um registro específico (usado nas abas/seções "Histórico" dos
+// modais de Atividade/Requisito/Fatura — ver wireAtividadeHistorico() etc.).
+// Reaproveita audLinhaHtml/AUD_* acima, só que sem paginação (limite alto já
+// cobre qualquer histórico realista de um único registro).
+async function audRenderHistoricoRegistro(containerId, entidade, entidadeId){
+  const el = $(containerId);
+  el.innerHTML = `<div class="muted">Carregando...</div>`;
+  let itens;
+  try{ itens = await api(`/log-auditoria/entidade/${entidade}/${entidadeId}`); }
+  catch(e){ el.innerHTML = `<div class="muted">Não foi possível carregar o histórico.</div>`; return; }
+  if(!itens.length){ el.innerHTML = `<div class="muted">Nenhum evento registrado para este item ainda.</div>`; return; }
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Evento</th><th>Descrição</th></tr></thead><tbody>${
+    itens.map(l=>`
+      <tr>
+        <td style="white-space:nowrap;">${fmtDateTime(l.criado_em)}</td>
+        <td>${esc(l.usuario_nome || l.usuario_email || "—")}</td>
+        <td>${AUD_EVENTO_ICONES[l.tipo_evento]||"•"} ${esc(AUD_EVENTO_ROTULOS[l.tipo_evento]||l.tipo_evento)}</td>
+        <td>${esc(l.descricao)}</td>
+      </tr>`).join("")
+  }</tbody></table></div>`;
 }
 
 // ================= Documentação (Documento Executivo / Documento Técnico) =================

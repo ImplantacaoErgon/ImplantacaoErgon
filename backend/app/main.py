@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort, session
 
-from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades, relatorio_atividades, manuais
+from . import db, cpm, tr_parser, cronograma_import, relatorio_executivo, relatorio_pdf, auth, minhas_atividades, relatorio_atividades, manuais, auditoria
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 FRONTEND_DIR = os.environ.get(
@@ -306,22 +306,33 @@ def insert_row(table, data, allowed):
     if not cols:
         raise ValueError("Nenhum campo válido informado.")
     sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join(vals)}) RETURNING *"
-    return db.execute_returning_one(sql)
+    row = db.execute_returning_one(sql)
+    # Gancho de auditoria (32ª rodada) — ver auditoria.py. Ponto único: cobre
+    # toda criação que passa por aqui, sem precisar tocar em cada rota.
+    auditoria.registrar_criacao(table, row)
+    return row
 
 
 def patch_row(table, row_id, data, allowed, prelude=""):
     sets = [f"{f} = {db.q(data[f])}" for f in allowed if f in data]
     if not sets:
         return db.fetch_one(f"SELECT * FROM {table} WHERE id = {db.q(row_id)}")
+    # Estado ANTES, pra diff do log de auditoria (ver auditoria.py) — um SELECT
+    # a mais por edição, custo desprezível perto do ganho de rastreabilidade.
+    antes = db.fetch_one(f"SELECT * FROM {table} WHERE id = {db.q(row_id)}")
     sql = f"UPDATE {table} SET {', '.join(sets)} WHERE id = {db.q(row_id)} RETURNING *"
-    return db.execute_returning_one(sql, prelude=prelude)
+    row = db.execute_returning_one(sql, prelude=prelude)
+    auditoria.registrar_edicao(table, antes, row)
+    return row
 
 
 def delete_row(table, row_id):
     """DELETE genérico. Erros de FK (registro em uso por outra tabela) e de
     unicidade são traduzidos em mensagens amigáveis pelo errorhandler global
     (ver handle_db_error), então aqui só dispara o DELETE mesmo."""
+    antes = db.fetch_one(f"SELECT * FROM {table} WHERE id = {db.q(row_id)}")
     db.execute(f"DELETE FROM {table} WHERE id = {db.q(row_id)}")
+    auditoria.registrar_exclusao(table, antes)
     return "", 204
 
 
@@ -511,6 +522,8 @@ def create_app():
         session.clear()
         session.permanent = True
         session["usuario_id"] = usuario["id"]
+        auditoria.registrar_criacao("usuarios", usuario)
+        auditoria.registrar_login(usuario["id"], usuario.get("nome"), usuario.get("email"))
         return jsonify(usuario), 201
 
     @app.post("/api/auth/login")
@@ -519,14 +532,21 @@ def create_app():
         try:
             usuario = auth.autenticar(data.get("email"), data.get("senha"))
         except auth.AuthError as e:
+            auditoria.registrar_login_falho(data.get("email"))
             return jsonify({"erro": str(e)}), 401
         session.clear()
         session.permanent = True
         session["usuario_id"] = usuario["id"]
+        auditoria.registrar_login(usuario["id"], usuario.get("nome"), usuario.get("email"))
         return jsonify(usuario)
 
     @app.post("/api/auth/logout")
     def auth_logout():
+        usuario_id = session.get("usuario_id")
+        if usuario_id:
+            usuario = auth.buscar_usuario_publico(usuario_id)
+            if usuario:
+                auditoria.registrar_logout(usuario_id, usuario.get("nome"), usuario.get("email"))
         session.clear()
         return "", 204
 
@@ -908,8 +928,7 @@ def create_app():
 
     @app.delete("/api/atividades/<id>")
     def delete_atividade(id):
-        db.execute(f"DELETE FROM atividades WHERE id = {db.q(id)}")
-        return "", 204
+        return delete_row("atividades", id)
 
     @app.get("/api/atividades/<id>/historico")
     def atividade_historico(id):
@@ -1105,8 +1124,7 @@ def create_app():
 
     @app.delete("/api/requisitos/<id>")
     def delete_requisito(id):
-        db.execute(f"DELETE FROM requisitos_tr WHERE id = {db.q(id)}")
-        return "", 204
+        return delete_row("requisitos_tr", id)
 
     @app.post("/api/requisitos/importar-csv")
     def importar_requisitos_csv():
@@ -1663,8 +1681,22 @@ def create_app():
             abort(404)
         if not confirmacao or confirmacao != projeto["nome"]:
             return jsonify({"erro": "Confirmação não confere com o nome do projeto. Nada foi apagado."}), 400
+        contagem = db.fetch_one(
+            f"SELECT (SELECT COUNT(*) FROM atividades WHERE projeto_id = {db.q(projeto_id)}) AS atividades, "
+            f"(SELECT COUNT(*) FROM marcos WHERE projeto_id = {db.q(projeto_id)}) AS marcos"
+        ) or {"atividades": 0, "marcos": 0}
         db.execute(f"DELETE FROM atividades WHERE projeto_id = {db.q(projeto_id)}")
         db.execute(f"DELETE FROM marcos WHERE projeto_id = {db.q(projeto_id)}")
+        # Ação irreversível e destrutiva — registra como evento sensível dedicado
+        # (não passa por delete_row: é uma exclusão em massa, não de 1 registro).
+        auditoria.registrar_evento_manual(
+            "exclusao",
+            f'Apagou todo o cronograma do projeto "{projeto["nome"]}" '
+            f'({contagem["atividades"]} atividade(s), {contagem["marcos"]} marco(s))',
+            entidade="cronograma", entidade_id=str(projeto_id), entidade_rotulo=projeto["nome"],
+            projeto_id=projeto_id, sensivel=True,
+            detalhes={"atividades_removidas": contagem["atividades"], "marcos_removidos": contagem["marcos"]},
+        )
         return jsonify({"ok": True})
 
     # ------------------------------------------------------------------ riscos
@@ -2056,6 +2088,59 @@ def create_app():
         if not row:
             abort(404)
         return jsonify(row)
+
+    # -------------------------------------------------------------- log de auditoria
+    # Configurações > Log de Auditoria (32ª rodada). Sem hierarquia de perfil no
+    # sistema (mesma observação da seção de Documentação acima), visível a
+    # qualquer usuário autenticado. Por padrão a listagem/resumo respeitam o
+    # projeto ativo (projeto_id do filtro) + eventos globais (projeto_id NULL:
+    # recurso, tipo de atividade, usuário, manual, login/logout) — ver
+    # auditoria._where_filtros. Passar sem projeto_id enxerga tudo.
+    def _filtros_log_auditoria():
+        return {
+            "projeto_id": request.args.get("projeto_id") or None,
+            "tipo_evento": request.args.get("tipo_evento") or None,
+            "entidade": request.args.get("entidade") or None,
+            "usuario_id": request.args.get("usuario_id") or None,
+            "somente_sensiveis": request.args.get("somente_sensiveis") == "1",
+            "busca": request.args.get("busca") or None,
+            "inicio": request.args.get("inicio") or None,
+            "fim": request.args.get("fim") or None,
+        }
+
+    @app.get("/api/log-auditoria")
+    def listar_log_auditoria():
+        filtros = _filtros_log_auditoria()
+        pagina = int(request.args.get("pagina") or 1)
+        tamanho_pagina = min(int(request.args.get("tamanho_pagina") or 50), 200)
+        return jsonify({
+            "itens": auditoria.listar(pagina=pagina, tamanho_pagina=tamanho_pagina, **filtros),
+            "total": auditoria.contar(**filtros),
+            "pagina": pagina,
+            "tamanho_pagina": tamanho_pagina,
+        })
+
+    @app.get("/api/log-auditoria/resumo")
+    def resumo_log_auditoria():
+        projeto_id = request.args.get("projeto_id") or None
+        dias = int(request.args.get("dias") or 30)
+        return jsonify(auditoria.resumo(projeto_id=projeto_id, dias=dias))
+
+    @app.get("/api/log-auditoria/entidade/<entidade>/<entidade_id>")
+    def historico_entidade_log_auditoria(entidade, entidade_id):
+        return jsonify(auditoria.historico_entidade(entidade, entidade_id))
+
+    @app.get("/api/log-auditoria/export")
+    def exportar_log_auditoria():
+        filtros = _filtros_log_auditoria()
+        cabecalho, linhas = auditoria.exportar_csv(**filtros)
+        buf = io.StringIO()
+        writer = csv.writer(buf, delimiter=";")
+        writer.writerow(cabecalho)
+        writer.writerows(linhas)
+        resp = app.response_class(buf.getvalue(), mimetype="text/csv")
+        resp.headers["Content-Disposition"] = "attachment; filename=log_auditoria.csv"
+        return resp
 
     # -------------------------------------------------------------- error handling
     @app.errorhandler(db.DbError)

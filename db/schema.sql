@@ -1080,6 +1080,37 @@ CREATE TRIGGER trg_faturas_atualizado_em BEFORE UPDATE ON faturas
 COMMENT ON TABLE faturas IS 'Faturas emitidas para os entregáveis do cronograma (atividades.eh_entregavel = true), com prazos de envio/pagamento e valores. valor_liquido é sempre valor_total - impostos, calculado pelo próprio Postgres.';
 
 -- ============================================================================
+-- LOG DE AUDITORIA (32ª rodada) — acessos e alterações de dados
+-- ============================================================================
+-- Alimentada centralmente por insert_row/patch_row/delete_row (main.py, que já
+-- canalizam quase toda criação/edição/exclusão do sistema) e pelas rotas de
+-- autenticação (login/logout/tentativa malsucedida) — ver auditoria.py. Cada
+-- linha é UM salvamento (não um campo por linha): um UPDATE que mexeu em 3
+-- campos gera 1 linha com os 3 no `detalhes` (jsonb), não 3 linhas.
+CREATE TABLE log_auditoria (
+  id              bigserial PRIMARY KEY,     -- sequencial simples (ordem = tempo), tabela só cresce (append-only)
+  criado_em       timestamptz NOT NULL DEFAULT now(),
+  usuario_id      uuid REFERENCES usuarios(id) ON DELETE SET NULL,
+  usuario_nome    text,             -- snapshot do nome no momento do evento — sobrevive a usuário desativado/renomeado depois
+  usuario_email   text,             -- idem, útil em login_falho (não há usuario_id quando a senha/e-mail está errado)
+  projeto_id      uuid REFERENCES projetos(id) ON DELETE SET NULL,  -- NULL = evento global (recurso, tipo de atividade, usuário, manual, login/logout)
+  tipo_evento     text NOT NULL,    -- 'login' | 'login_falho' | 'logout' | 'senha_redefinida' | 'criacao' | 'edicao' | 'exclusao'
+  entidade        text,             -- nome da tabela afetada (ex.: 'atividades') — NULL em login/logout
+  entidade_id     text,             -- id do registro afetado — NULL em login/logout
+  entidade_rotulo text,             -- identificação amigável do registro no momento do evento (ex.: nome da atividade) — sobrevive a exclusão/renomeação depois
+  descricao       text NOT NULL,    -- frase pronta pra exibir na lista, já com os campos alterados
+  detalhes        jsonb,            -- diff estruturado {campo: {rotulo, de, para}} — pra quem quiser abrir e ver exatamente o que mudou
+  sensivel        boolean NOT NULL DEFAULT false,  -- mudança crítica sinalizada (prazo empurrado, exclusão, etc.) — ver auditoria.py
+  ip              text
+);
+COMMENT ON TABLE log_auditoria IS 'Trilha de auditoria do sistema: acessos (login/logout/tentativa malsucedida) e alterações de dados (criação/edição/exclusão), com diff campo a campo quando aplicável. Alimentada centralmente por insert_row/patch_row/delete_row (main.py) e pelas rotas de autenticação — ver auditoria.py.';
+
+CREATE INDEX idx_log_auditoria_projeto ON log_auditoria (projeto_id, criado_em DESC);
+CREATE INDEX idx_log_auditoria_entidade ON log_auditoria (entidade, entidade_id, criado_em DESC);
+CREATE INDEX idx_log_auditoria_usuario ON log_auditoria (usuario_id, criado_em DESC);
+CREATE INDEX idx_log_auditoria_criado_em ON log_auditoria (criado_em DESC);
+
+-- ============================================================================
 -- Views de apoio a relatórios
 -- ============================================================================
 
