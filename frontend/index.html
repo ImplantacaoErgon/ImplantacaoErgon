@@ -483,7 +483,7 @@
     </div>
     <div class="card">
       <h3>Horas por recurso (previsto × realizado)</h3>
-      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada recurso aparece como participante. Cada atividade é contada por inteiro para todos os seus participantes, independente de quantos sejam. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
+      <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada recurso aparece como participante. Usa a hora alocada especificamente daquela pessoa na atividade (aba Responsáveis, no modal de atividade) quando informada; sem alocação específica, conta a atividade inteira para ela. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Recurso</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
         <tbody id="dash-horas-resp"></tbody>
@@ -2441,20 +2441,25 @@ function renderHorasPorRecurso(){
   // lançadas — comparar realizado x previsto do total (incluindo o que nem começou) faria
   // parecer que todo mundo está muito "abaixo do previsto" só porque o trabalho ainda não
   // foi executado, o que não é a mesma coisa que ter gastado menos horas que o planejado.
+  // Horas previstas por pessoa: usa a hora ALOCADA daquele participante especificamente
+  // na atividade (atividade_recurso.horas_alocadas, 19ª rodada) quando informada; cai para
+  // as horas previstas da atividade inteira (a.prazo_horas) só quando ninguém alocou nada
+  // pra ela — mesmo critério já usado em "Minhas atividades" (garantir_dias, backend).
   const porPessoa = new Map();
-  const acumula = (recursoId, a) => {
+  const acumula = (recursoId, a, horasAlocadas) => {
     if(!recursoId) return;
     if(!porPessoa.has(recursoId)) porPessoa.set(recursoId, {qtd:0, previstas:0, previstasLancadas:0, realizadas:0, qtdLancadas:0});
     const acc = porPessoa.get(recursoId);
+    const previstoPessoa = (horasAlocadas != null && horasAlocadas !== "") ? Number(horasAlocadas) : Number(a.prazo_horas || 0);
     acc.qtd += 1;
-    acc.previstas += Number(a.prazo_horas || 0);
+    acc.previstas += previstoPessoa;
     if(a.horas_realizadas != null){
       acc.qtdLancadas += 1;
-      acc.previstasLancadas += Number(a.prazo_horas || 0);
+      acc.previstasLancadas += previstoPessoa;
       acc.realizadas += Number(a.horas_realizadas || 0);
     }
   };
-  ATIVIDADES.forEach(a => (a.responsaveis||[]).forEach(p => acumula(p.id, a)));
+  ATIVIDADES.forEach(a => (a.responsaveis||[]).forEach(p => acumula(p.id, a, p.horas_alocadas)));
 
   const linhas = [...porPessoa.entries()]
     .map(([recursoId, acc]) => ({recurso: byId(RECURSOS, recursoId), ...acc}))

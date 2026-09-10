@@ -182,7 +182,8 @@ SELECT a.*, e.numero AS etapa_numero, e.nome AS etapa_nome,
        -- ver tabela atividade_recurso e migração 012), já pronta pro front-end sem
        -- round-trip extra: cada item {id, nome, tipo_vinculo}.
        COALESCE((
-         SELECT json_agg(json_build_object('id', r.id, 'nome', r.nome, 'tipo_vinculo', r.tipo_vinculo)
+         SELECT json_agg(json_build_object('id', r.id, 'nome', r.nome, 'tipo_vinculo', r.tipo_vinculo,
+                                            'horas_alocadas', ar.horas_alocadas)
                           ORDER BY r.tipo_vinculo, r.nome)
          FROM atividade_recurso ar JOIN recursos r ON r.id = ar.recurso_id
          WHERE ar.atividade_id = a.id
