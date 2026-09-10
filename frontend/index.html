@@ -441,6 +441,30 @@
         <tbody id="dash-atrasadas"></tbody>
       </table></div>
     </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3>📅 Atividades previstas e em andamento — semana corrente</h3>
+        <span class="muted mono" id="dash-semana-atual-periodo" style="font-size:11.5px;"></span>
+      </div>
+      <div class="view-sub" style="margin-top:-6px;">Atividades cujo período previsto cruza com esta semana, mais qualquer atividade já em andamento (mesmo que tenha começado antes).</div>
+      <div class="muted" id="dash-semana-atual-vazio" style="margin-top:6px;">Nenhuma atividade prevista ou em andamento nesta semana.</div>
+      <div class="table-wrap" id="dash-semana-atual-tabela-wrap" hidden style="margin-top:6px;"><table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>Recursos</th></tr></thead>
+        <tbody id="dash-semana-atual"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h3>📅 Atividades previstas — semana seguinte</h3>
+        <span class="muted mono" id="dash-semana-seguinte-periodo" style="font-size:11.5px;"></span>
+      </div>
+      <div class="view-sub" style="margin-top:-6px;">Atividades cujo período previsto cruza com a próxima semana — planejamento antecipado do que vem pela frente.</div>
+      <div class="muted" id="dash-semana-seguinte-vazio" style="margin-top:6px;">Nenhuma atividade prevista para a próxima semana.</div>
+      <div class="table-wrap" id="dash-semana-seguinte-tabela-wrap" hidden style="margin-top:6px;"><table>
+        <thead><tr><th>Código</th><th>Atividade</th><th>Frente</th><th>Status</th><th>Início prev.</th><th>Fim prev.</th><th>Recursos</th></tr></thead>
+        <tbody id="dash-semana-seguinte"></tbody>
+      </table></div>
+    </div>
     <div class="card" id="dash-alertas-card" hidden>
       <h3>⚠ Atenção — Urgente/Alta sem recurso ou sem prazo</h3>
       <div class="view-sub" style="margin-top:-6px;">Atividades de prioridade alta que ainda não têm nenhum recurso definido ou não têm data fim prevista — risco de escapar do radar.</div>
@@ -2250,6 +2274,8 @@ function renderDashboard(){
   $("dash-marcos").innerHTML = proximos.length ? proximos.map(m=>`<li><span>${esc(m.nome)}</span><span class="mono muted">${fmtDate(m.data_prevista)}</span></li>`).join("")
     : `<li class="muted">Nenhum marco pendente.</li>`;
 
+  renderSemanaAtual();
+  renderSemanaSeguinte();
   renderAlertasPrioridade();
   renderEsforcoEstourado();
   renderHorasPorRecurso();
@@ -2319,6 +2345,63 @@ function renderEsforcoEstourado(){
   $("dash-esforco").querySelectorAll("tr[data-id]").forEach(tr=>{
     tr.addEventListener("click", ()=>{ goToView("cronograma"); openAtividadeModal(byId(ATIVIDADES, tr.dataset.id)); });
   });
+}
+
+// Duas visões rápidas de curto prazo pedidas pelo usuário: o que está passando esta
+// semana (previsto OU em andamento, mesmo que tenha começado antes) e o que está
+// previsto pra semana seguinte. Reaproveita a mesma janela "semana" (segunda a domingo)
+// já usada pelo filtro rápido de período do Cronograma (periodRange("semana")), só
+// deslocada +7 dias corridos pra semana seguinte — sem endpoint novo, os dados já estão
+// todos em ATIVIDADES.
+function _atividadeSobrepoePeriodo(a, inicio, fim){
+  if(!a.dtini_prev || !a.dtfim_prev) return false;
+  const ini = new Date(a.dtini_prev+"T00:00:00"), fimA = new Date(a.dtfim_prev+"T00:00:00");
+  return ini<=fim && fimA>=inicio;
+}
+function _formatarPeriodoSemana(inicio, fim){
+  return `${inicio.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`;
+}
+function _linhaSemanaCard(a){
+  return `<tr class="clickable" data-id="${a.id}">
+    <td class="mono">${esc(a.codigo_wbs||"—")}</td><td>${esc(a.nome)}</td>
+    <td>${esc(a.frente_nome)}</td>
+    <td>${pill(a.status, STATUS_COLOR[a.status]||"faint")}</td>
+    <td class="mono">${fmtDate(a.dtini_prev)}</td><td class="mono">${fmtDate(a.dtfim_prev)}</td>
+    <td>${responsaveisCell(a)}</td>
+  </tr>`;
+}
+function _wireCliqueLinhasSemana(tbodyId){
+  $(tbodyId).querySelectorAll("tr[data-id]").forEach(tr=>{
+    tr.addEventListener("click", ()=>{ goToView("cronograma"); openAtividadeModal(byId(ATIVIDADES, tr.dataset.id)); });
+  });
+}
+function renderSemanaAtual(){
+  const [inicio, fim] = periodRange("semana");
+  $("dash-semana-atual-periodo").textContent = _formatarPeriodoSemana(inicio, fim);
+  const lista = ATIVIDADES.filter(a =>
+    a.status !== "Cancelada" &&
+    (_atividadeSobrepoePeriodo(a, inicio, fim) || a.status === "Em andamento")
+  ).sort((a,b)=>(a.dtini_prev||"9999").localeCompare(b.dtini_prev||"9999"));
+  $("dash-semana-atual-vazio").hidden = lista.length > 0;
+  $("dash-semana-atual-tabela-wrap").hidden = lista.length === 0;
+  if(!lista.length) return;
+  $("dash-semana-atual").innerHTML = lista.map(_linhaSemanaCard).join("");
+  _wireCliqueLinhasSemana("dash-semana-atual");
+}
+function renderSemanaSeguinte(){
+  const [inicioAtual, fimAtual] = periodRange("semana");
+  const inicio = new Date(inicioAtual); inicio.setDate(inicio.getDate()+7);
+  const fim = new Date(fimAtual); fim.setDate(fim.getDate()+7);
+  $("dash-semana-seguinte-periodo").textContent = _formatarPeriodoSemana(inicio, fim);
+  const lista = ATIVIDADES.filter(a =>
+    !STATUS_FAMILIA_CONCLUIDA.includes(a.status) && a.status !== "Cancelada" &&
+    _atividadeSobrepoePeriodo(a, inicio, fim)
+  ).sort((a,b)=>(a.dtini_prev||"9999").localeCompare(b.dtini_prev||"9999"));
+  $("dash-semana-seguinte-vazio").hidden = lista.length > 0;
+  $("dash-semana-seguinte-tabela-wrap").hidden = lista.length === 0;
+  if(!lista.length) return;
+  $("dash-semana-seguinte").innerHTML = lista.map(_linhaSemanaCard).join("");
+  _wireCliqueLinhasSemana("dash-semana-seguinte");
 }
 
 // Atividades Urgente/Alta, ainda não concluídas/canceladas, sem nenhum recurso ou sem fim previsto —
