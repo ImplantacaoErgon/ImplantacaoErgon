@@ -1,5 +1,5 @@
 -- ============================================================================
--- Ergon PM — banco de dados de gestão técnica da implantação
+-- Gestão de Projetos — banco de dados de gestão técnica da implantação
 -- PostgreSQL 14+
 --
 -- Organização geral:
@@ -50,7 +50,7 @@ CREATE TYPE cobranca_enum AS ENUM ('Sim','Não','N/A');
 
 CREATE TYPE tipo_requisito_enum AS ENUM ('Funcional','Não Funcional');
 
-CREATE TYPE tipo_vinculo_enum AS ENUM ('Techne','Cliente','Terceirizado');
+CREATE TYPE tipo_vinculo_enum AS ENUM ('Consultoria','Cliente','Terceirizado');
 
 CREATE TYPE nivel_risco_enum AS ENUM ('Baixo','Médio','Alto');
 
@@ -73,15 +73,15 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 CREATE TABLE projetos (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  sigla           text,                          -- sigla curta do projeto, ex: "ERGON-PGFN"
+  sigla           text,                          -- sigla curta do projeto, ex: "SISTEMA-2026"
   nome            text NOT NULL,
   cliente         text NOT NULL,                 -- Instituição/órgão cliente
   descricao       text,
   fiscal_projeto            text,                -- fiscal do contrato, nomeado pelo cliente
   gestor_projeto            text,                -- gestor do projeto pelo cliente
   gerente_projeto_cliente   text,
-  gerente_projeto_techne    text,
-  lider_projeto_techne      text,
+  gerente_projeto_consultoria    text,
+  lider_projeto_consultoria      text,
   data_abertura       date,                      -- data de abertura/assinatura do projeto
   data_inicio         date,                      -- início previsto
   data_inicio_real    date,
@@ -96,7 +96,7 @@ CREATE TABLE projetos (
 );
 CREATE TRIGGER trg_projetos_atualizado_em BEFORE UPDATE ON projetos
   FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
-COMMENT ON TABLE projetos IS 'Um projeto de implantação (ex: Ergon num órgão específico). Permite reuso do modelo em outros clientes da Techne.';
+COMMENT ON TABLE projetos IS 'Um projeto de implantação (ex: Sistema num órgão específico). Permite reuso do modelo em outros clientes da Consultoria.';
 
 -- ============================================================================
 -- 2. ETAPAS  (Etapa 1, 2, 3 do documento de metodologia)
@@ -145,13 +145,13 @@ CREATE TABLE tipos_atividade_elementar (
 COMMENT ON TABLE tipos_atividade_elementar IS 'Vocabulário controlado do "tipo" de trabalho de cada atividade, reutilizável entre frentes — permite agregar, por exemplo, "todas as atividades de Levantamento", independente da frente.';
 
 -- ============================================================================
--- 5. RECURSOS (pessoas: consultores Techne, analistas/gestores do cliente)
+-- 5. RECURSOS (pessoas: consultores da consultoria, analistas/gestores do cliente)
 -- ============================================================================
 CREATE TABLE recursos (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   nome            text NOT NULL,
-  tipo_vinculo    tipo_vinculo_enum NOT NULL DEFAULT 'Techne',  -- Techne / Cliente / Terceirizado — usado para filtrar recursos
-  empresa         text,               -- nome da empresa/instituição a que pertence (ex: "Techne", "TSE", "Consultoria XYZ")
+  tipo_vinculo    tipo_vinculo_enum NOT NULL DEFAULT 'Consultoria',  -- Consultoria / Cliente / Terceirizado — usado para filtrar recursos
+  empresa         text,               -- nome da empresa/instituição a que pertence (ex: "Consultoria", "TSE", "Consultoria XYZ")
   cargo           text,               -- "Consultor de Folha", "Líder Técnico", "Analista de TI", "Gestor de RH"...
   email           text,
   telefone        text,
@@ -159,7 +159,7 @@ CREATE TABLE recursos (
   ativo           boolean NOT NULL DEFAULT true,
   criado_em       timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE recursos IS 'Recursos (consultores Techne, terceirizados, analistas/gestores do cliente). tipo_vinculo classifica o lado; empresa guarda o nome real da empresa/instituição; controla_horas define se o recurso pode apontar horas em "Minhas atividades".';
+COMMENT ON TABLE recursos IS 'Recursos (consultores da consultoria, terceirizados, analistas/gestores do cliente). tipo_vinculo classifica o lado; empresa guarda o nome real da empresa/instituição; controla_horas define se o recurso pode apontar horas em "Minhas atividades".';
 
 -- ============================================================================
 -- 6. ATIVIDADES  (WBS hierárquica — o coração do cronograma)
@@ -181,9 +181,11 @@ CREATE TABLE atividades (
                                        -- duplicar) — ver backend/app/cronograma_import.py. NULL se cadastrada manualmente.
   nome              text NOT NULL,    -- "Levantamento Grupo de Vencimento", "Extração de Pessoas"...
   descricao         text,
-  -- Quem executa/participa da atividade (Techne, cliente ou terceirizado, quantos forem
+  objetivo          text,             -- o que essa atividade entrega/produz (ajuda o time a não perder de vista
+                                       -- o resultado esperado) — distinto de `descricao`, que é livre
+  -- Quem executa/participa da atividade (Consultoria, cliente ou terceirizado, quantos forem
   -- necessários) fica em `atividade_recurso` (N:N — ver seção 8), não mais em campos fixos
-  -- aqui. Migração 012 removeu os antigos responsavel_techne_id/responsavel_cliente_id
+  -- aqui. Migração 012 removeu os antigos responsavel_consultoria_id/responsavel_cliente_id
   -- (um único recurso de cada lado) por essa tabela de relação.
 
   prazo_horas       numeric(8,2),     -- horas previstas (estimativa de esforço planejada)
@@ -285,7 +287,7 @@ CREATE TRIGGER trg_atividades_historico
 CREATE TABLE atividade_relato (
   id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   atividade_id              uuid NOT NULL REFERENCES atividades(id) ON DELETE CASCADE,
-  autor_id                  uuid REFERENCES recursos(id),      -- autor cadastrado como recurso (consultor Techne ou do cliente)
+  autor_id                  uuid REFERENCES recursos(id),      -- autor cadastrado como recurso (consultor da consultoria ou do cliente)
   autor_nome                text,                              -- alternativa livre, caso o autor não esteja cadastrado em recursos
   texto                     text NOT NULL,
   eh_pendencia              boolean NOT NULL DEFAULT false,
@@ -321,10 +323,10 @@ COMMENT ON TABLE atividade_dependencia IS 'Arestas do grafo de precedência. tip
 -- 8. ALOCAÇÃO DE RECURSOS EM ATIVIDADES (N:N — quantos recursos forem necessários)
 -- ============================================================================
 -- Desde a migração 012, esta é a ÚNICA fonte de "quem participa/executa" uma
--- atividade — os antigos campos fixos atividades.responsavel_techne_id /
+-- atividade — os antigos campos fixos atividades.responsavel_consultoria_id /
 -- responsavel_cliente_id (um só de cada lado) foram removidos. Uma atividade
 -- pode ter quantos participantes forem necessários, de qualquer tipo de
--- vínculo (ex: uma reunião gerencial com 4 pessoas da Techne e 5 do cliente).
+-- vínculo (ex: uma reunião gerencial com 4 pessoas da Consultoria e 5 do cliente).
 -- Editável na aba "Recursos" do modal da atividade (ver frontend/index.html
 -- e as rotas /api/atividades/<id>/recursos em backend/app/main.py). É também
 -- esta lista que decide quem vê a atividade em "Minhas atividades" — cada
@@ -523,7 +525,7 @@ CREATE TABLE usuarios (
 );
 CREATE UNIQUE INDEX idx_usuarios_email_lower ON usuarios (lower(email));
 COMMENT ON TABLE usuarios IS
-  'Usuários com login no sistema (equipe Techne e do cliente). Autocadastro '
+  'Usuários com login no sistema (equipe Consultoria e do cliente). Autocadastro '
   'aberto — ver README, seção "Login e cadastro de usuários". Distinta de '
   '"recursos" (pessoas alocadas em atividades no cronograma): um '
   'usuário de login não precisa ser um recurso, e vice-versa.';
@@ -593,7 +595,7 @@ COMMENT ON COLUMN parametros_site.logo_mime IS
 --
 -- Desde a migração 012, a granularidade é por (atividade, recurso, dia), não
 -- mais só (atividade, dia): uma atividade com N participantes (ex: uma
--- reunião gerencial com 4 pessoas da Techne e 5 do cliente) gera uma quebra
+-- reunião gerencial com 4 pessoas da Consultoria e 5 do cliente) gera uma quebra
 -- diária PRÓPRIA para cada participante, e cada um aponta/confirma as
 -- próprias horas de forma totalmente independente dos demais — sem que isso
 -- altere `atividades.prazo_horas`/`horas_realizadas`, que continuam sendo um
@@ -681,25 +683,25 @@ CREATE TRIGGER trg_documentacao_atualizado_em BEFORE UPDATE ON documentacao
   FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
 
 INSERT INTO documentacao (tipo, titulo, versao, conteudo_md) VALUES
-('executivo', 'Documento Executivo', '1.0', $doc$# Ergon PM — Documento Executivo
+('executivo', 'Documento Executivo', '1.0', $doc$# Gestão de Projetos — Documento Executivo
 
 ## 1. Visão geral
 
-O **Ergon PM** é o sistema de gestão da própria implantação do Ergon (o sistema de Gestão de Recursos Humanos e Folha de Pagamento da Techne) em órgãos públicos. Ele não é o Ergon em si — é a ferramenta que a equipe Techne e a equipe do cliente usam, juntas, para planejar, acompanhar e prestar contas de todo o projeto de implantação: cronograma, requisitos do Termo de Referência, riscos, apontamento de horas da equipe, e a comunicação executiva do andamento.
+A **Gestão de Projetos** é o sistema de gestão da própria implantação do sistema (o sistema de Gestão de Recursos Humanos e Folha de Pagamento da Consultoria) em órgãos públicos. Ele não é o sistema em si — é a ferramenta que a equipe da Consultoria e a equipe do cliente usam, juntas, para planejar, acompanhar e prestar contas de todo o projeto de implantação: cronograma, requisitos do Termo de Referência, riscos, apontamento de horas da equipe, e a comunicação executiva do andamento.
 
-O sistema foi desenhado para ser reutilizável: cada órgão/cliente onde a Techne implanta o Ergon vira um **projeto** independente dentro do mesmo sistema, com seu próprio cronograma, sua própria equipe alocada e seus próprios requisitos — mas todos os usuários (consultores Techne, em especial) enxergam, numa única tela ("Minhas atividades"), o apontamento de horas de todos os projetos em que estão atuando ao mesmo tempo.
+O sistema foi desenhado para ser reutilizável: cada órgão/cliente onde a Consultoria implanta o sistema vira um **projeto** independente dentro do mesmo sistema, com seu próprio cronograma, sua própria equipe alocada e seus próprios requisitos — mas todos os usuários (consultores da Consultoria, em especial) enxergam, numa única tela ("Minhas atividades"), o apontamento de horas de todos os projetos em que estão atuando ao mesmo tempo.
 
 ## 2. Conceitos-chave
 
 Antes de descrever cada tela, vale alinhar o vocabulário usado em todo o sistema.
 
-**Projeto** — uma implantação do Ergon em um cliente específico (ex: "Implantação Ergon — TSE"). Tem sigla, nome, instituição/cliente, datas de início e fim previstas, prazo contratual e os nomes dos principais interlocutores (fiscal do contrato, gestor do projeto, gerentes e líder técnico). Um usuário pode participar de vários projetos e trocar entre eles pelo seletor no topo da tela.
+**Projeto** — uma implantação do sistema em um cliente específico (ex: "Implantação do Sistema — TSE"). Tem sigla, nome, instituição/cliente, datas de início e fim previstas, prazo contratual e os nomes dos principais interlocutores (fiscal do contrato, gestor do projeto, gerentes e líder técnico). Um usuário pode participar de vários projetos e trocar entre eles pelo seletor no topo da tela.
 
 **Etapa** — as macro-fases da metodologia de implantação (ex: Etapa 1 = folha de pagamento completa, Etapa 2 = módulos isolados). Cada atividade do cronograma pertence a uma etapa.
 
 **Frente de trabalho** — as frentes técnicas do projeto: Parametrização, Migração de Dados, Folha de Pagamento, Customizações, Contagem de Tempo, Integrações, eSocial, Portal do Servidor, Workflow, BI, Treinamentos, Gestão, entre outras. Cada atividade pertence a uma frente.
 
-**Recurso** — qualquer pessoa envolvida no projeto: consultor Techne, analista/gestor do cliente, ou terceirizado. Um recurso pode participar de quantas atividades forem necessárias, e uma atividade pode ter quantos recursos forem necessários (não há mais o limite antigo de "um responsável Techne + um responsável do cliente"). Cada recurso tem um vínculo (Techne, Cliente ou Terceirizado), pode ou não ter e-mail de login associado (o que o conecta à tela "Minhas atividades") e tem uma marcação de **controle de horas por atividade** — só recursos com essa marca ativa podem apontar e confirmar horas no sistema.
+**Recurso** — qualquer pessoa envolvida no projeto: consultor da consultoria, analista/gestor do cliente, ou terceirizado. Um recurso pode participar de quantas atividades forem necessárias, e uma atividade pode ter quantos recursos forem necessários (não há mais o limite antigo de "um responsável da consultoria + um responsável do cliente"). Cada recurso tem um vínculo (Consultoria, Cliente ou Terceirizado), pode ou não ter e-mail de login associado (o que o conecta à tela "Minhas atividades") e tem uma marcação de **controle de horas por atividade** — só recursos com essa marca ativa podem apontar e confirmar horas no sistema.
 
 **Atividade** — a unidade elementar do cronograma (a WBS — Estrutura Analítica do Projeto). Toda atividade pertence a uma Etapa e a uma Frente de trabalho, tem um tipo elementar (Levantamento, Parametrização, Extração, Carga, Programação, Homologação, Treinamento, Reunião etc.), datas previstas/reais de início e fim, horas previstas/realizadas, percentual concluído, status e prioridade. Atividades podem ter subatividades (hierarquia WBS), dependências entre si (para o cálculo de caminho crítico) e podem estar vinculadas a um ou mais requisitos do Termo de Referência.
 
@@ -778,12 +780,12 @@ Os cadastros base do projeto, organizados em abas:
 
 ## 5. Um sistema em evolução
 
-O Ergon PM está em implantação contínua: novas funcionalidades, campos e validações são adicionadas conforme o projeto avança. Este documento é mantido atualizado a cada mudança relevante — a data e a versão no topo indicam a última revisão.$doc$),
-('tecnico', 'Documento Técnico', '1.0', $doc$# Ergon PM — Documento Técnico
+O Gestão de Projetos está em implantação contínua: novas funcionalidades, campos e validações são adicionadas conforme o projeto avança. Este documento é mantido atualizado a cada mudança relevante — a data e a versão no topo indicam a última revisão.$doc$),
+('tecnico', 'Documento Técnico', '1.0', $doc$# Gestão de Projetos — Documento Técnico
 
 ## 1. Como usar este documento
 
-Este documento descreve a arquitetura, o banco de dados e as convenções técnicas do **Ergon PM** — a ferramenta de gestão da implantação do sistema Ergon (não confundir com o Ergon em si, o produto de RH/Folha da Techne que está sendo implantado no cliente). Ele é o ponto de partida para qualquer pessoa (ou IA) que vá dar manutenção, corrigir bugs ou adicionar funcionalidades ao Ergon PM, e é mantido atualizado a cada rodada de desenvolvimento.
+Este documento descreve a arquitetura, o banco de dados e as convenções técnicas da **Gestão de Projetos** — a ferramenta de gestão da implantação do sistema (não confundir com o sistema em si, o produto de RH/Folha da Consultoria que está sendo implantado no cliente). Ele é o ponto de partida para qualquer pessoa (ou IA) que vá dar manutenção, corrigir bugs ou adicionar funcionalidades à Gestão de Projetos, e é mantido atualizado a cada rodada de desenvolvimento.
 
 ## 2. Stack tecnológica
 
@@ -863,7 +865,7 @@ documentacao (singleton por tipo — este documento e o Documento Executivo)
 
 ### 6.1 Tabelas principais
 
-**`projetos`** — uma implantação por linha. Campos-chave: `sigla`, `nome`, `cliente`, os cinco campos de interlocutores (`fiscal_projeto`, `gestor_projeto`, `gerente_projeto_cliente`, `gerente_projeto_techne`, `lider_projeto_techne`), datas (`data_abertura`, `data_inicio`, `data_inicio_real`, `data_fim_prevista`), `prazo_total_meses` e `horas_dia_util` (jornada padrão usada para converter horas em dias úteis no CPM).
+**`projetos`** — uma implantação por linha. Campos-chave: `sigla`, `nome`, `cliente`, os cinco campos de interlocutores (`fiscal_projeto`, `gestor_projeto`, `gerente_projeto_cliente`, `gerente_projeto_consultoria`, `lider_projeto_consultoria`), datas (`data_abertura`, `data_inicio`, `data_inicio_real`, `data_fim_prevista`), `prazo_total_meses` e `horas_dia_util` (jornada padrão usada para converter horas em dias úteis no CPM).
 
 **`etapas`** — `projeto_id` (FK, `ON DELETE CASCADE`), `numero`, `nome`. `UNIQUE (projeto_id, numero)`.
 
@@ -871,9 +873,9 @@ documentacao (singleton por tipo — este documento e o Documento Executivo)
 
 **`tipos_atividade_elementar`** — vocabulário global (sem `projeto_id`), `nome` único, `ordem`, `ativo`.
 
-**`recursos`** — global (sem `projeto_id`: a mesma pessoa pode atuar em vários projetos ao mesmo tempo). Campos: `nome`, `tipo_vinculo` (enum: Techne/Cliente/Terceirizado), `empresa`, `cargo`, `email`, `telefone`, `controla_horas` (boolean, default `true` — desde a migração 013, só recursos com esta marca podem apontar horas em "Minhas atividades"), `ativo`. Índice funcional `idx_recursos_email_lower` (`lower(email)`) acelera o casamento usuário-logado → recurso por e-mail.
+**`recursos`** — global (sem `projeto_id`: a mesma pessoa pode atuar em vários projetos ao mesmo tempo). Campos: `nome`, `tipo_vinculo` (enum: Consultoria/Cliente/Terceirizado), `empresa`, `cargo`, `email`, `telefone`, `controla_horas` (boolean, default `true` — desde a migração 013, só recursos com esta marca podem apontar horas em "Minhas atividades"), `ativo`. Índice funcional `idx_recursos_email_lower` (`lower(email)`) acelera o casamento usuário-logado → recurso por e-mail.
 
-**`atividades`** — a tabela central. `projeto_id`, `etapa_id`, `frente_trabalho_id` (todas FK obrigatórias), `tipo_atividade_elementar_id` (FK opcional), `atividade_pai_id` (auto-FK, `ON DELETE CASCADE` — hierarquia WBS), `requisito_tr_id` (FK opcional para `requisitos_tr`, criada por `ALTER TABLE` depois que a tabela de requisitos existe, por causa da ordem de criação), `codigo_wbs` (numeração hierárquica mantida pela aplicação), `origem_importacao_id` (id da tarefa na planilha de origem, usado para casar a mesma atividade entre reimportações), `nome`, `descricao`, `prazo_horas`, `horas_realizadas`, quatro datas (`dtini_prev`, `dtfim_prev`, `dtini_real`, `dtfim_real`), `percentual_concluido` (0–100), `status` (enum), `prioridade` (enum), sete colunas de resultado do CPM (`cpm_es_dias`, `cpm_ef_dias`, `cpm_ls_dias`, `cpm_lf_dias`, `cpm_folga_dias`, `cpm_critica`, `cpm_calculado_em`, mais as quatro datas de calendário equivalentes), `observacoes`, `eh_atividade_master` (marca os entregáveis mestres do projeto, usados pelo Relatório Executivo). Não existem mais campos fixos de responsável (`responsavel_techne_id`/`responsavel_cliente_id` foram removidos na migração 012) — quem participa de uma atividade vive só em `atividade_recurso`. Índices em `projeto_id`, `etapa_id`, `frente_trabalho_id`, `atividade_pai_id`, `status`, `dtfim_prev`, `dtini_prev`, `(projeto_id, origem_importacao_id)` e um índice parcial em atividades master.
+**`atividades`** — a tabela central. `projeto_id`, `etapa_id`, `frente_trabalho_id` (todas FK obrigatórias), `tipo_atividade_elementar_id` (FK opcional), `atividade_pai_id` (auto-FK, `ON DELETE CASCADE` — hierarquia WBS), `requisito_tr_id` (FK opcional para `requisitos_tr`, criada por `ALTER TABLE` depois que a tabela de requisitos existe, por causa da ordem de criação), `codigo_wbs` (numeração hierárquica mantida pela aplicação), `origem_importacao_id` (id da tarefa na planilha de origem, usado para casar a mesma atividade entre reimportações), `nome`, `descricao`, `prazo_horas`, `horas_realizadas`, quatro datas (`dtini_prev`, `dtfim_prev`, `dtini_real`, `dtfim_real`), `percentual_concluido` (0–100), `status` (enum), `prioridade` (enum), sete colunas de resultado do CPM (`cpm_es_dias`, `cpm_ef_dias`, `cpm_ls_dias`, `cpm_lf_dias`, `cpm_folga_dias`, `cpm_critica`, `cpm_calculado_em`, mais as quatro datas de calendário equivalentes), `observacoes`, `eh_atividade_master` (marca os entregáveis mestres do projeto, usados pelo Relatório Executivo). Não existem mais campos fixos de responsável (`responsavel_consultoria_id`/`responsavel_cliente_id` foram removidos na migração 012) — quem participa de uma atividade vive só em `atividade_recurso`. Índices em `projeto_id`, `etapa_id`, `frente_trabalho_id`, `atividade_pai_id`, `status`, `dtfim_prev`, `dtini_prev`, `(projeto_id, origem_importacao_id)` e um índice parcial em atividades master.
 
 **`historico_status_atividade`** — auditoria automática (nunca escrita manualmente pela aplicação): um trigger (`trg_atividades_historico`, função `registrar_historico_status_atividade()`) grava uma linha a cada `INSERT` ou a cada vez que `status` muda num `UPDATE`, guardando o status anterior, o novo e quem alterou (lido de `current_setting('app.usuario_atual', true)`).
 
@@ -909,7 +911,7 @@ documentacao (singleton por tipo — este documento e o Documento Executivo)
 
 ### 6.2 Tipos enumerados (vocabulário fechado)
 
-`prioridade_enum` (Urgente/Alta/Média/Baixa) · `status_atividade_enum` (Não iniciada/Em andamento/Bloqueada/Concluída/Cancelada) · `tipo_dependencia_enum` (FS/SS/FF/SF) · `classificacao_tr_enum` · `atendimento_tr_enum` · `status_requisito_enum` · `cobranca_enum` (Sim/Não/N-A) · `tipo_requisito_enum` (Funcional/Não Funcional) · `tipo_vinculo_enum` (Techne/Cliente/Terceirizado) · `nivel_risco_enum` (Baixo/Médio/Alto) · `status_risco_enum` (Aberto/Mitigado/Encerrado) · `entidade_anexo_enum` (atividade/requisito/risco/marco/projeto).
+`prioridade_enum` (Urgente/Alta/Média/Baixa) · `status_atividade_enum` (Não iniciada/Em andamento/Bloqueada/Concluída/Cancelada) · `tipo_dependencia_enum` (FS/SS/FF/SF) · `classificacao_tr_enum` · `atendimento_tr_enum` · `status_requisito_enum` · `cobranca_enum` (Sim/Não/N-A) · `tipo_requisito_enum` (Funcional/Não Funcional) · `tipo_vinculo_enum` (Consultoria/Cliente/Terceirizado) · `nivel_risco_enum` (Baixo/Médio/Alto) · `status_risco_enum` (Aberto/Mitigado/Encerrado) · `entidade_anexo_enum` (atividade/requisito/risco/marco/projeto).
 
 ### 6.3 Views
 
@@ -979,7 +981,7 @@ Este documento técnico é atualizado a cada rodada de desenvolvimento que alter
 -- ============================================================================
 -- 20. MANUAIS DO SISTEMA
 -- ============================================================================
--- Catálogo GLOBAL de manuais do Ergon (não é por projeto — os mesmos manuais
+-- Catálogo GLOBAL de manuais do Sistema (não é por projeto — os mesmos manuais
 -- valem pra qualquer implantação). Cada manual é um PDF guardado em base64
 -- direto no banco (mesmo padrão já usado pra logo/documentação — o Render de
 -- produção não tem disco persistente entre deploys, então arquivo em disco
@@ -997,7 +999,7 @@ CREATE TABLE manuais (
   ativo           boolean NOT NULL DEFAULT true,
   enviado_em      timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE manuais IS 'Catálogo global (não por projeto) dos manuais do sistema Ergon, usados na análise de Requisitos TR x Manuais (Configurações > Manuais do Sistema).';
+COMMENT ON TABLE manuais IS 'Catálogo global (não por projeto) dos manuais do sistema, usados na análise de Requisitos TR x Manuais (Configurações > Manuais do Sistema).';
 
 CREATE TABLE manual_paginas (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1040,7 +1042,7 @@ COMMENT ON TABLE requisito_referencia_manual IS 'Referências (manual + página 
 -- Uma fatura está sempre atrelada a UMA atividade do cronograma marcada como
 -- entregável (atividades.eh_entregavel = true — 26ª rodada); essa checagem é
 -- feita no backend, não é um CHECK de banco (exigiria trigger pra olhar outra
--- tabela). responsavel_entrega_id precisa ser um recurso Techne (idem,
+-- tabela). responsavel_entrega_id precisa ser um recurso da consultoria (idem,
 -- checado no backend). responsavel_recebimento pode ser um recurso cadastrado
 -- (normalmente do cliente) OU só um nome digitado de alguém do cliente sem
 -- cadastro — por isso responsavel_recebimento_nome/cargo são sempre
@@ -1060,7 +1062,7 @@ CREATE TABLE faturas (
   data_pagamento_previsao             date,
   data_pagamento                      date,
   descricao                           text,
-  responsavel_entrega_id              uuid NOT NULL REFERENCES recursos(id),   -- precisa ser recurso Techne (checado no backend)
+  responsavel_entrega_id              uuid NOT NULL REFERENCES recursos(id),   -- precisa ser recurso da consultoria (checado no backend)
   responsavel_recebimento_recurso_id  uuid REFERENCES recursos(id) ON DELETE SET NULL,
   responsavel_recebimento_nome        text,   -- nome do responsável pelo recebimento — copiado automaticamente do
                                        -- recurso vinculado, ou digitado livremente quando não há recurso cadastrado

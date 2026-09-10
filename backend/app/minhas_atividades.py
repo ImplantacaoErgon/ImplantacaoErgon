@@ -7,10 +7,12 @@ participantes (tabela `atividade_recurso`, N:N — desde a migração 012, uma
 atividade pode ter quantos participantes forem necessários, de qualquer tipo
 de vínculo). O vínculo "usuário logado -> profissional" não é uma coluna
 nova: é resolvido em tempo de consulta comparando o e-mail de login com o
-e-mail cadastrado no Responsável (ambos case-insensitive) — ver
-`recursos_do_usuario()`. Um usuário cujo e-mail não bate com nenhum
-Responsável cadastrado simplesmente não tem nada pra ver aqui (a rota devolve
-`vinculado: False`, e o front-end explica o que fazer).
+e-mail cadastrado no Recurso (ambos case-insensitive) — ver
+`recursos_do_usuario()`. Um usuário cujo e-mail não bate com nenhum Recurso
+cadastrado, ou que bate com um Recurso sem `controla_horas` habilitado
+(migração 013), simplesmente não tem nada pra ver aqui (a rota devolve
+`vinculado: False` com um `motivo`, e o front-end explica o que fazer em
+cada caso).
 
 Desde a 16ª rodada, a grade traz atividades de TODOS os projetos em que o
 profissional está delegado, não só do projeto selecionado no cabeçalho —
@@ -23,12 +25,19 @@ atender vários clientes ao mesmo tempo, inclusive na mesma semana. Ver
 Para cada atividade, a grade mostra os dias úteis da semana escolhida (por
 padrão, a semana atual) com a hora prevista de cada dia. Essa quebra diária é
 gerada automaticamente, uma única vez POR PARTICIPANTE (`garantir_dias()`),
-dividindo `atividades.prazo_horas` igualmente pelos dias úteis entre
-`dtini_prev` e `dtfim_prev` — cada participante recebe a MESMA distribuição
-prevista (não dividida entre eles) e passa a ter sua própria linha em
+dividindo igualmente pelos dias úteis entre `dtini_prev` e `dtfim_prev` a
+quantidade de horas **alocada aquele participante especificamente**
+(`atividade_recurso.horas_alocadas`, 18ª rodada de features "extra"); quando
+ninguém informou uma hora alocada pra ele, cai no comportamento original —
+usa `atividades.prazo_horas`, a atividade inteira. Ou seja, numa atividade
+com vários participantes, cada um pode ter sua própria fatia (ex: 10h pra um
+consultor, 6h pra outro, de um total de 16h) ou, se a alocação for deixada
+em branco, continuar vendo a atividade inteira como antes. De qualquer
+forma, cada participante passa a ter sua própria linha em
 `atividade_horas_dia`, dali em diante a fonte de verdade daquele participante
-naquela atividade, dia a dia (editar o total geral ou as datas da atividade
-depois não regenera a grade — ver comentário em db/schema.sql, seção 18).
+naquela atividade, dia a dia (editar o total geral, a alocação ou as datas
+da atividade depois não regenera a grade — ver comentário em db/schema.sql,
+seção 18).
 
 Cabe a cada consultor, em cada dia de CADA atividade em que participa: (a)
 ajustar o número de horas previstas daquele dia (`ajustar_dia`), ou (b)
@@ -43,7 +52,7 @@ modal da atividade desde a 4ª rodada) é INDEPENDENTE do que acontece
 aqui — nenhuma ação nesta tela grava nesse campo. Isso já foi tentado uma vez
 (16ª rodada, parte 3: um cálculo automático que somava os dias confirmados) e
 revertido a pedido do usuário: uma atividade do cronograma pode ter vários
-responsáveis envolvidos (ex: uma reunião gerencial com 4 pessoas da Techne e
+recursos envolvidos (ex: uma reunião gerencial com 4 pessoas da consultoria e
 5 do cliente), e cada um aponta e confirma as PRÓPRIAS horas aqui, de forma
 totalmente independente dos demais (`atividade_horas_dia` é por
 `atividade_id` + `recurso_id`, não mais só por `atividade_id`) — mas isso não
@@ -70,15 +79,26 @@ def _parse_data(v):
     return date.fromisoformat(v) if isinstance(v, str) else v
 
 
-def recursos_do_usuario(email):
-    """Ids de todos os Responsáveis (recursos) cujo e-mail cadastrado bate
-    (case-insensitive) com o e-mail de login do usuário. Normalmente 0 ou 1,
-    mas nada impede mais de um cadastro de Responsável com o mesmo e-mail —
-    nesse caso, atividades delegadas a qualquer um deles aparecem juntas."""
+def recursos_do_usuario(email, apenas_com_controle_horas=True):
+    """Ids de todos os Recursos cujo e-mail cadastrado bate (case-insensitive)
+    com o e-mail de login do usuário. Normalmente 0 ou 1, mas nada impede mais
+    de um cadastro de Recurso com o mesmo e-mail — nesse caso, atividades
+    delegadas a qualquer um deles aparecem juntas.
+
+    Por padrão só devolve recursos com `controla_horas = true` (migração
+    013) — só esses podem registrar apontamento em "Minhas atividades" e
+    aparecer no Relatório de Horas dos Recursos. Passe
+    `apenas_com_controle_horas=False` para checar se existe ALGUM cadastro
+    vinculado ao e-mail, independente da marca — usado só por `montar_grade()`
+    para distinguir, na mensagem ao usuário, "não achei nenhum recurso com
+    esse e-mail" de "achei, mas ele não tem controle de horas habilitado"."""
     email = (email or "").strip().lower()
     if not email:
         return []
-    linhas = db.fetch_all(f"SELECT id, nome FROM recursos WHERE lower(email) = {db.q(email)}")
+    filtro = "AND controla_horas = TRUE" if apenas_com_controle_horas else ""
+    linhas = db.fetch_all(
+        f"SELECT id, nome, controla_horas FROM recursos WHERE lower(email) = {db.q(email)} {filtro}"
+    )
     return linhas
 
 
@@ -115,20 +135,31 @@ def _dias_uteis_periodo(data_ini, data_fim, non_working):
 
 
 def garantir_dias(atividade, recurso_id, non_working):
-    """Gera a quebra diária (atividade_horas_dia) da atividade inteira PARA
-    UM PARTICIPANTE específico, uma única vez. Idempotente: se já existir
-    qualquer linha para este par (atividade, recurso), não faz nada (ver
-    docstring do módulo — a grade diária, uma vez criada, é a fonte de
-    verdade daquele participante). Não gera nada se a atividade não tiver
-    data de início/fim previstas ou horas previstas cadastradas (não há como
-    distribuir)."""
+    """Gera a quebra diária (atividade_horas_dia) PARA UM PARTICIPANTE
+    específico, uma única vez. Idempotente: se já existir qualquer linha
+    para este par (atividade, recurso), não faz nada (ver docstring do
+    módulo — a grade diária, uma vez criada, é a fonte de verdade daquele
+    participante). Não gera nada se a atividade não tiver data de início/fim
+    previstas ou nenhuma horas para distribuir (nem alocada, nem prevista).
+
+    18ª rodada de features "extra": a quantidade de horas distribuída é a
+    hora ALOCADA daquele participante (`atividade_recurso.horas_alocadas`,
+    quando informada) — cada um passa a ver, na própria grade, só a
+    parcela que lhe foi alocada, em vez da atividade inteira. Quando não
+    informada (`None`), cai no comportamento de sempre: usa
+    `atividades.prazo_horas` (a atividade inteira) — dito explicitamente
+    pelo usuário como "se não informar nada, assumir as horas da
+    atividade". `atividade` já vem com `horas_alocadas` do participante
+    específico embutido pela consulta de `montar_grade()`."""
     ja_existe = db.fetch_one(
         f"SELECT 1 AS x FROM atividade_horas_dia "
         f"WHERE atividade_id = {db.q(atividade['id'])} AND recurso_id = {db.q(recurso_id)} LIMIT 1"
     )
     if ja_existe:
         return
-    dtini, dtfim, prazo = atividade.get("dtini_prev"), atividade.get("dtfim_prev"), atividade.get("prazo_horas")
+    dtini, dtfim = atividade.get("dtini_prev"), atividade.get("dtfim_prev")
+    horas_alocadas = atividade.get("horas_alocadas")
+    prazo = horas_alocadas if horas_alocadas not in (None, "") else atividade.get("prazo_horas")
     if not dtini or not dtfim or not prazo:
         return
     dtini, dtfim = _parse_data(dtini), _parse_data(dtfim)
@@ -167,8 +198,13 @@ def montar_grade(usuario, data_ref: date):
     `recursos` sempre foi uma tabela global (sem `projeto_id`), sem nenhuma
     trava impedindo isso no banco. Cada atividade retornada traz
     `projeto_id`/`projeto_sigla`/`projeto_nome` para o front-end identificar
-    de qual projeto ela é."""
-    recursos = recursos_do_usuario(usuario.get("email") if usuario else None)
+    de qual projeto ela é.
+
+    18ª rodada: quando `vinculado` dá False, a resposta também traz `motivo`
+    ("sem_recurso_vinculado" ou "sem_controle_horas") pra o front-end mostrar
+    a mensagem certa — ver `recursos_do_usuario()`."""
+    email = usuario.get("email") if usuario else None
+    recursos = recursos_do_usuario(email)
     dias_semana = semana_de(data_ref)
     inicio, fim = dias_semana[0], dias_semana[-1]
     semana_info = {
@@ -176,7 +212,8 @@ def montar_grade(usuario, data_ref: date):
         "dias": [d.isoformat() for d in dias_semana],
     }
     if not recursos:
-        return {"vinculado": False, "recurso_nomes": [], "atividades": [], "semana": semana_info}
+        motivo = "sem_controle_horas" if recursos_do_usuario(email, apenas_com_controle_horas=False) else "sem_recurso_vinculado"
+        return {"vinculado": False, "motivo": motivo, "recurso_nomes": [], "atividades": [], "semana": semana_info}
 
     recurso_ids = [r["id"] for r in recursos]
     placeholders = ", ".join(db.q(rid) for rid in recurso_ids)
@@ -184,7 +221,7 @@ def montar_grade(usuario, data_ref: date):
         SELECT a.id, a.nome, a.codigo_wbs, a.status, a.prazo_horas, a.dtini_prev, a.dtfim_prev,
                a.projeto_id, p.sigla AS projeto_sigla, p.nome AS projeto_nome,
                e.numero AS etapa_numero, e.nome AS etapa_nome, f.nome AS frente_nome,
-               ar.recurso_id AS recurso_id
+               ar.recurso_id AS recurso_id, ar.horas_alocadas AS horas_alocadas
         FROM atividades a
         JOIN atividade_recurso ar ON ar.atividade_id = a.id AND ar.recurso_id IN ({placeholders})
         JOIN projetos p ON p.id = a.projeto_id

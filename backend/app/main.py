@@ -25,7 +25,7 @@ FRONTEND_DIR = os.environ.get(
 # PÚBLICO (está neste código-fonte), então NUNCA deve ser usado em
 # produção. Configure SECRET_KEY no .env antes de ir para produção (veja
 # .env.example e o README, seção "Login e cadastro de usuários").
-_SECRET_KEY_FALLBACK_INSEGURO = "ergon-pm-troque-esta-chave-no-.env-antes-de-usar-em-producao"
+_SECRET_KEY_FALLBACK_INSEGURO = "app-troque-esta-chave-no-.env-antes-de-usar-em-producao"
 SECRET_KEY = os.environ.get("SECRET_KEY", "").strip() or _SECRET_KEY_FALLBACK_INSEGURO
 if SECRET_KEY == _SECRET_KEY_FALLBACK_INSEGURO:
     print(
@@ -46,7 +46,7 @@ AUTH_ROTAS_PUBLICAS = {
 
 PROJETO_FIELDS = [
     "sigla", "nome", "cliente", "descricao", "fiscal_projeto", "gestor_projeto",
-    "gerente_projeto_cliente", "gerente_projeto_techne", "lider_projeto_techne",
+    "gerente_projeto_cliente", "gerente_projeto_consultoria", "lider_projeto_consultoria",
     "data_abertura", "data_inicio", "data_inicio_real", "data_fim_prevista",
     "prazo_total_meses", "valor_global_contrato", "horas_dia_util",
 ]
@@ -81,12 +81,12 @@ STATUS_REQUISITO_VALIDOS = {
 PRIORIDADE_VALIDAS = {"Urgente", "Alta", "Média", "Baixa"}
 COBRANCA_VALIDAS = {"Sim", "Não", "N/A"}
 TIPO_REQUISITO_VALIDOS = {"Funcional", "Não Funcional"}
-TIPO_VINCULO_VALIDOS = {"Techne", "Cliente", "Terceirizado"}
+TIPO_VINCULO_VALIDOS = {"Consultoria", "Cliente", "Terceirizado"}
 
 ATIVIDADE_FIELDS = [
     "projeto_id", "etapa_id", "frente_trabalho_id", "tipo_atividade_elementar_id", "atividade_pai_id",
     "requisito_tr_id",
-    "codigo_wbs", "origem_importacao_id", "nome", "descricao",
+    "codigo_wbs", "origem_importacao_id", "nome", "descricao", "objetivo",
     "prazo_horas", "horas_realizadas", "dtini_prev", "dtfim_prev",
     "dtini_real", "dtfim_real", "percentual_concluido", "status", "prioridade", "observacoes",
     "eh_atividade_master", "eh_entregavel",
@@ -254,7 +254,7 @@ def preparar_fatura(data, projeto_id):
     Regras (26ª/27ª rodadas, pedidas explicitamente pelo usuário):
     - a atividade vinculada precisa pertencer ao mesmo projeto da fatura e
       estar marcada como entregável (atividades.eh_entregavel = true);
-    - o responsável pela entrega precisa ser um recurso Techne;
+    - o responsável pela entrega precisa ser um recurso Consultoria;
     - o responsável pelo recebimento pode ser um recurso cadastrado (nesse
       caso nome/cargo são copiados automaticamente do cadastro, sempre —
       qualquer nome/cargo enviado pelo front-end é ignorado) ou, na
@@ -279,8 +279,8 @@ def preparar_fatura(data, projeto_id):
         )
         if not rec:
             raise ValueError("Responsável pela entrega não encontrado.")
-        if rec["tipo_vinculo"] != "Techne":
-            raise ValueError("O responsável pela entrega precisa ser um recurso Techne.")
+        if rec["tipo_vinculo"] != "Consultoria":
+            raise ValueError("O responsável pela entrega precisa ser um recurso Consultoria.")
 
     recurso_receb_id = data.get("responsavel_recebimento_recurso_id")
     if recurso_receb_id:
@@ -794,14 +794,14 @@ def create_app():
         if not data.get("nome"):
             return jsonify({"erro": "Nome do recurso é obrigatório."}), 400
         if data.get("tipo_vinculo") and data["tipo_vinculo"] not in TIPO_VINCULO_VALIDOS:
-            return jsonify({"erro": "Vínculo inválido — use Techne, Cliente ou Terceirizado."}), 400
+            return jsonify({"erro": "Vínculo inválido — use Consultoria, Cliente ou Terceirizado."}), 400
         return jsonify(insert_row("recursos", data, RECURSO_FIELDS)), 201
 
     @app.put("/api/recursos/<id>")
     def update_recurso(id):
         data = request.get_json(force=True)
         if data.get("tipo_vinculo") and data["tipo_vinculo"] not in TIPO_VINCULO_VALIDOS:
-            return jsonify({"erro": "Vínculo inválido — use Techne, Cliente ou Terceirizado."}), 400
+            return jsonify({"erro": "Vínculo inválido — use Consultoria, Cliente ou Terceirizado."}), 400
         row = patch_row("recursos", id, data, RECURSO_FIELDS)
         if not row:
             abort(404)
@@ -1018,6 +1018,32 @@ def create_app():
             f"{db.q(data.get('horas_alocadas'))}) RETURNING *"
         )
         return jsonify(db.execute_returning_one(sql)), 201
+
+    @app.patch("/api/atividades/<id>/recursos/<recurso_id>")
+    def update_atividade_recurso(id, recurso_id):
+        # Edita horas_alocadas/papel_na_atividade de um participante já
+        # existente (18ª rodada de features "extra") — só os campos presentes
+        # no corpo são tocados; mandar horas_alocadas: null limpa o valor
+        # (volta a assumir as horas previstas da atividade, ver
+        # minhas_atividades.garantir_dias). Update genérico (insert_row/
+        # patch_row) não serve aqui porque a chave é composta
+        # (atividade_id, recurso_id), não um único "id".
+        data = request.get_json(force=True)
+        sets = []
+        if "horas_alocadas" in data:
+            sets.append(f"horas_alocadas = {db.q(data.get('horas_alocadas'))}")
+        if "papel_na_atividade" in data:
+            sets.append(f"papel_na_atividade = {db.q(data.get('papel_na_atividade'))}")
+        if not sets:
+            return jsonify({"erro": "Nenhum campo válido informado."}), 400
+        sql = (
+            f"UPDATE atividade_recurso SET {', '.join(sets)} "
+            f"WHERE atividade_id = {db.q(id)} AND recurso_id = {db.q(recurso_id)} RETURNING *"
+        )
+        row = db.execute_returning_one(sql)
+        if not row:
+            return jsonify({"erro": "Vínculo não encontrado."}), 404
+        return jsonify(row)
 
     @app.delete("/api/atividades/<id>/recursos/<recurso_id>")
     def remove_atividade_recurso(id, recurso_id):
