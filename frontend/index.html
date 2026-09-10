@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ergon PM — Gestão Técnica da Implantação</title>
+<title>Gestão de Projetos — Acompanhamento da Implantação</title>
 <script>
   // Restaura o tema (claro/escuro) escolhido pelo usuário ANTES do <style>
   // ser aplicado, pra não piscar no tema errado (FOUC). É preferência
@@ -13,7 +13,7 @@
   // do sistema operacional, comportamento padrão de sempre.
   (function(){
     try{
-      var tema = localStorage.getItem("ergonTema");
+      var tema = localStorage.getItem("appTema");
       if(tema === "light" || tema === "dark") document.documentElement.dataset.theme = tema;
     }catch(e){}
   })();
@@ -305,7 +305,7 @@
 <!-- ================= TELA DE LOGIN / CADASTRO ================= -->
 <div id="auth-screen" hidden style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
   <div class="card" style="width:100%;max-width:420px;">
-    <h2 class="view-title" style="margin-bottom:2px;">Ergon PM</h2>
+    <h2 class="view-title" style="margin-bottom:2px;">Gestão de Projetos</h2>
     <div class="view-sub">Gestão técnica da implantação</div>
 
     <div id="auth-pane-login">
@@ -739,7 +739,7 @@
         </div>
         <div class="field full">
           <label>Nome da empresa *</label>
-          <input id="param-nome-empresa" type="text" placeholder="Ex: Techne Sistemas">
+          <input id="param-nome-empresa" type="text" placeholder="Ex: Consultoria XYZ">
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:12px;">
           <button class="btn" id="param-salvar">Salvar</button>
@@ -988,10 +988,10 @@
           </label>
         </div>
 
-        <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço"></div>
+        <div class="field"><label>Horas previstas</label><input id="at-prazo" type="number" step="0.5" placeholder="Estimativa de esforço" title="Preenchendo isto junto com Início ou Fim previsto, a outra data é calculada automaticamente (dias úteis, jornada do projeto)."></div>
         <div class="field"><label>Horas realizadas</label><input id="at-horas-real" type="number" step="0.5" placeholder="Horas efetivamente gastas"></div>
-        <div class="field"><label>Início previsto</label><input id="at-dtini-prev" type="date"></div>
-        <div class="field"><label>Fim previsto</label><input id="at-dtfim-prev" type="date"></div>
+        <div class="field"><label>Início previsto</label><input id="at-dtini-prev" type="date" title="Preenchido junto com Horas previstas, calcula automaticamente o Fim previsto (dias úteis) se ele estiver vazio."></div>
+        <div class="field"><label>Fim previsto</label><input id="at-dtfim-prev" type="date" title="Preenchido junto com Horas previstas, calcula automaticamente o Início previsto (dias úteis) se ele estiver vazio."></div>
         <div class="field"><label>Início real</label><input id="at-dtini-real" type="date"></div>
         <div class="field"><label>Fim real</label><input id="at-dtfim-real" type="date"></div>
 
@@ -1006,7 +1006,7 @@
           <select id="at-resp-add-select"></select>
           <button class="btn small" id="at-resp-add">Adicionar</button>
         </div>
-        <p class="muted" style="margin-top:10px;">Todas as pessoas (Techne, cliente ou terceirizadas) envolvidas na execução desta atividade — pode ter quantas forem necessárias (ex: uma reunião gerencial com várias pessoas de ambos os lados). Cada uma aponta e confirma as próprias horas em "Minhas atividades", de forma independente das demais; o previsto/realizado da atividade no Cronograma continua sendo um número único, que não muda conforme quantas pessoas participaram.</p>
+        <p class="muted" style="margin-top:10px;">Todas as pessoas (da consultoria, cliente ou terceirizadas) envolvidas na execução desta atividade — pode ter quantas forem necessárias (ex: uma reunião gerencial com várias pessoas de ambos os lados). Cada uma aponta e confirma as próprias horas em "Minhas atividades", de forma independente das demais; o previsto/realizado da atividade no Cronograma continua sendo um número único, que não muda conforme quantas pessoas participaram.</p>
       </div>
     </div>
 
@@ -1129,7 +1129,7 @@
 
       <div class="field full"><label>Descrição</label><textarea id="fat-descricao"></textarea></div>
 
-      <div class="field full"><label>Responsável pela entrega (recurso Techne) *</label><select id="fat-resp-entrega"></select></div>
+      <div class="field full"><label>Responsável pela entrega (recurso da Consultoria) *</label><select id="fat-resp-entrega"></select></div>
 
       <div class="field full">
         <label>Responsável pelo recebimento *</label>
@@ -1350,18 +1350,18 @@
 
     <div class="modal-pane active" data-pane="detalhes">
       <div class="modal-body">
-        <div class="field"><label>Sigla do projeto</label><input id="proj-sigla" type="text" placeholder="Ex: ERGON-PGFN"></div>
+        <div class="field"><label>Sigla do projeto</label><input id="proj-sigla" type="text" placeholder="Ex: PROJ-2026"></div>
         <div class="field"><label>Prazo total (meses)</label><input id="proj-prazo-meses" type="number" step="0.5" min="0"></div>
         <div class="field"><label>Valor global do contrato</label><input id="proj-valor-contrato" type="number" step="0.01" min="0" placeholder="Ex: 1500000.00"></div>
-        <div class="field full"><label>Nome do projeto *</label><input id="proj-nome" type="text" placeholder="Ex: Implantação do Sistema Ergon"></div>
+        <div class="field full"><label>Nome do projeto *</label><input id="proj-nome" type="text" placeholder="Ex: Implantação do Sistema"></div>
         <div class="field full"><label>Instituição *</label><input id="proj-instituicao" type="text" placeholder="Nome do órgão/cliente"></div>
         <div class="field full"><label>Descrição</label><textarea id="proj-descricao"></textarea></div>
 
         <div class="field"><label>Fiscal do projeto</label><input id="proj-fiscal" type="text"></div>
         <div class="field"><label>Gestor do projeto</label><input id="proj-gestor" type="text"></div>
         <div class="field"><label>Gerente de projeto do cliente</label><input id="proj-gerente-cliente" type="text"></div>
-        <div class="field"><label>Gerente de projeto da Techne</label><input id="proj-gerente-techne" type="text"></div>
-        <div class="field full" style="max-width:calc(50% - 7px);"><label>Líder de projeto da Techne</label><input id="proj-lider-techne" type="text"></div>
+        <div class="field"><label>Gerente de projeto da Consultoria</label><input id="proj-gerente-consultoria" type="text"></div>
+        <div class="field full" style="max-width:calc(50% - 7px);"><label>Líder de projeto da Consultoria</label><input id="proj-lider-consultoria" type="text"></div>
 
         <div class="field"><label>Data de abertura do projeto</label><input id="proj-data-abertura" type="date"></div>
         <div class="field"><label>Jornada padrão (h/dia útil)</label><input id="proj-horas-dia" type="number" step="0.5" min="1"></div>
@@ -1538,7 +1538,7 @@ async function trocarProjeto(id){
   const novo = PROJETOS.find(p=>p.id===id);
   if(!novo) return;
   PROJETO = novo;
-  localStorage.setItem("ergonProjetoId", PROJETO.id);
+  localStorage.setItem("appProjetoId", PROJETO.id);
   renderSeletorProjeto();
   await recarregarDadosDoProjeto();
   toast(`Projeto alterado: ${PROJETO.nome}`);
@@ -1723,10 +1723,10 @@ async function boot(){
 
 async function iniciarApp(){
   PROJETOS = await api("/projetos");
-  // Lembra o último projeto usado neste navegador (chave "ergonProjetoId",
-  // mesmo padrão do tema em "ergonTema") — cai no primeiro projeto cadastrado
+  // Lembra o último projeto usado neste navegador (chave "appProjetoId",
+  // mesmo padrão do tema em "appTema") — cai no primeiro projeto cadastrado
   // se nada estiver salvo ainda, ou se o salvo não existir mais na lista.
-  const idSalvo = localStorage.getItem("ergonProjetoId");
+  const idSalvo = localStorage.getItem("appProjetoId");
   PROJETO = (idSalvo && PROJETOS.find(p=>p.id===idSalvo)) || PROJETOS[0] || null;
   renderSeletorProjeto();
   if(!PROJETO){
@@ -1734,7 +1734,7 @@ async function iniciarApp(){
     openProjetoModal("initial");
     return;
   }
-  localStorage.setItem("ergonProjetoId", PROJETO.id);
+  localStorage.setItem("appProjetoId", PROJETO.id);
   await afterProjetoReady();
 }
 
@@ -1791,15 +1791,15 @@ function fillStaticSelects(){
   $("req-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
   $("at-relato-pend-responsavel").innerHTML = `<option value="">—</option>` + recursoOpts;
 
-  // Fatura (27ª rodada): responsável pela entrega precisa ser Techne (regra
+  // Fatura (27ª rodada): responsável pela entrega precisa ser da Consultoria (regra
   // validada de novo no backend, em preparar_fatura); responsável pelo
   // recebimento, quando vinculado a um recurso, precisa ser alguém que NÃO
-  // seja da Techne (o cliente/terceirizado que recebe) — ver descrição do
+  // seja da Consultoria (o cliente/terceirizado que recebe) — ver descrição do
   // usuário. Nomes sem cadastro entram pelo campo de texto livre ao lado.
   $("fat-resp-entrega").innerHTML = `<option value="">—</option>` +
-    RECURSOS.filter(r=>r.tipo_vinculo==="Techne").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
+    RECURSOS.filter(r=>r.tipo_vinculo==="Consultoria").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
   $("fat-receb-recurso").innerHTML = `<option value="">—</option>` +
-    RECURSOS.filter(r=>r.tipo_vinculo!=="Techne").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
+    RECURSOS.filter(r=>r.tipo_vinculo!=="Consultoria").map(r=>`<option value="${r.id}">${recursoLabel(r)}</option>`).join("");
 
   const statusAtiv = ["Não iniciada","Em andamento","Bloqueada",
     "Concluída","Concluída com atraso","Concluída com esforço maior","Concluída com atraso e esforço maior",
@@ -2484,6 +2484,55 @@ function switchPane(container, name){
   container.querySelectorAll(".modal-tabs button").forEach(b=>b.classList.toggle("active", b.dataset.pane===name));
   container.querySelectorAll(".modal-pane").forEach(p=>p.classList.toggle("active", p.dataset.pane===name));
 }
+
+// ---- Cálculo automático da data prevista que falta (horas previstas + uma das duas
+// datas -> preenche a outra), no formulário de atividade. Mesmo critério de dia útil já
+// usado no Caminho Crítico (cpm.py) e em "Minhas atividades" (pula sábado/domingo e as
+// exceções cadastradas no Calendário de Feriados do projeto, CALENDARIO) — mantém o
+// cálculo consistente com o resto do sistema, em vez de contar dias corridos aqui.
+// Só preenche o campo que está VAZIO; nunca sobrescreve uma data que o usuário (ou uma
+// importação) já preencheu explicitamente.
+function _naoUteisDoProjeto(){
+  return new Set(CALENDARIO.filter(c=>c.util===false).map(c=>c.data));
+}
+function _ehDiaUtil(iso, naoUteis){
+  const dow = new Date(iso+"T00:00:00").getDay();
+  return dow!==0 && dow!==6 && !naoUteis.has(iso);
+}
+function _isoDeData(d){ return d.toISOString().slice(0,10); }
+// n dias úteis a partir de (e incluindo, se for útil) baseIso: n=0 -> primeiro dia útil >= baseIso.
+function _diaUtilMaisN(baseIso, naoUteis, n){
+  const d = new Date(baseIso+"T00:00:00"); let count=0;
+  while(true){
+    const iso = _isoDeData(d);
+    if(_ehDiaUtil(iso, naoUteis)){ if(count===n) return iso; count++; }
+    d.setDate(d.getDate()+1);
+  }
+}
+// n dias úteis antes de (e incluindo, se for útil) baseIso: n=0 -> primeiro dia útil <= baseIso.
+function _diaUtilMenosN(baseIso, naoUteis, n){
+  const d = new Date(baseIso+"T00:00:00"); let count=0;
+  while(true){
+    const iso = _isoDeData(d);
+    if(_ehDiaUtil(iso, naoUteis)){ if(count===n) return iso; count++; }
+    d.setDate(d.getDate()-1);
+  }
+}
+function _diasUteisParaHoras(horas){
+  const horasDia = Number(PROJETO?.horas_dia_util) || 8;
+  if(!horas || horas<=0) return 1;
+  return Math.max(1, Math.round(Number(horas)/horasDia));
+}
+function autoCalcularDataPrevista(){
+  const horas = $("at-prazo").value ? Number($("at-prazo").value) : null;
+  const ini = $("at-dtini-prev").value, fim = $("at-dtfim-prev").value;
+  if(!horas || horas<=0) return;
+  const naoUteis = _naoUteisDoProjeto();
+  const dias = _diasUteisParaHoras(horas);
+  if(ini && !fim) $("at-dtfim-prev").value = _diaUtilMaisN(ini, naoUteis, dias-1);
+  else if(fim && !ini) $("at-dtini-prev").value = _diaUtilMenosN(fim, naoUteis, dias-1);
+}
+
 function wireAtividadeModal(){
   const modal = $("overlay-atividade");
   modal.querySelector(".modal-tabs").addEventListener("click", e=>{
@@ -2530,6 +2579,9 @@ function wireAtividadeModal(){
   });
   $("at-status").addEventListener("change", ()=>{
     if(editingAtividadeId) refreshRelatos();
+  });
+  ["at-prazo","at-dtini-prev","at-dtfim-prev"].forEach(id=>{
+    $(id).addEventListener("change", autoCalcularDataPrevista);
   });
   $("at-relato-add").addEventListener("click", async ()=>{
     const texto = $("at-relato-texto").value.trim();
@@ -2741,7 +2793,7 @@ async function saveRequisito(){
 // ================= FATURAS (27ª rodada) =================
 // Faturamento dos entregáveis do cronograma — ver preparar_fatura() no
 // backend para as regras de validação (atividade precisa ser um entregável,
-// responsável pela entrega precisa ser Techne, responsável pelo recebimento
+// responsável pela entrega precisa ser da Consultoria, responsável pelo recebimento
 // é um recurso cadastrado OU um nome livre, nunca os dois vazios ao mesmo
 // tempo). valor_liquido nunca é enviado ao backend — é coluna GENERATED
 // (valor_total - impostos), calculada pelo próprio Postgres; o campo aqui na
@@ -2952,7 +3004,7 @@ function openProjetoModal(modo){
   const criando = modo !== "editar"; // "initial" ou "novo" — formulário em branco
   const p = criando ? null : PROJETO;
   $("proj-modal-title").textContent = isInitial ? "Cadastro do projeto" : (modo==="novo" ? "Novo projeto" : "Dados do projeto");
-  $("proj-modal-hint").textContent = isInitial ? "Preencha os dados para começar a usar o Ergon PM." : (modo==="novo" ? "Preencha os dados do novo projeto." : "");
+  $("proj-modal-hint").textContent = isInitial ? "Preencha os dados para começar a usar a Gestão de Projetos." : (modo==="novo" ? "Preencha os dados do novo projeto." : "");
   $("proj-close").style.visibility = isInitial ? "hidden" : "visible";
   $("proj-cancel").style.visibility = isInitial ? "hidden" : "visible";
   $("proj-tab-anexos").style.opacity = p ? "1" : ".5";
@@ -2966,8 +3018,8 @@ function openProjetoModal(modo){
   $("proj-fiscal").value = p?.fiscal_projeto || "";
   $("proj-gestor").value = p?.gestor_projeto || "";
   $("proj-gerente-cliente").value = p?.gerente_projeto_cliente || "";
-  $("proj-gerente-techne").value = p?.gerente_projeto_techne || "";
-  $("proj-lider-techne").value = p?.lider_projeto_techne || "";
+  $("proj-gerente-consultoria").value = p?.gerente_projeto_consultoria || "";
+  $("proj-lider-consultoria").value = p?.lider_projeto_consultoria || "";
   $("proj-data-abertura").value = p?.data_abertura || "";
   $("proj-horas-dia").value = p?.horas_dia_util ?? 8;
   $("proj-data-inicio").value = p?.data_inicio || "";
@@ -2994,8 +3046,8 @@ async function saveProjeto(){
     fiscal_projeto: $("proj-fiscal").value.trim() || null,
     gestor_projeto: $("proj-gestor").value.trim() || null,
     gerente_projeto_cliente: $("proj-gerente-cliente").value.trim() || null,
-    gerente_projeto_techne: $("proj-gerente-techne").value.trim() || null,
-    lider_projeto_techne: $("proj-lider-techne").value.trim() || null,
+    gerente_projeto_consultoria: $("proj-gerente-consultoria").value.trim() || null,
+    lider_projeto_consultoria: $("proj-lider-consultoria").value.trim() || null,
     data_abertura: $("proj-data-abertura").value || null,
     horas_dia_util: Number($("proj-horas-dia").value || 8),
     data_inicio: $("proj-data-inicio").value || null,
@@ -3020,7 +3072,7 @@ async function saveProjeto(){
       const novo = await api("/projetos", {method:"POST", body: JSON.stringify(data)});
       PROJETOS.push(novo);
       PROJETO = novo;
-      localStorage.setItem("ergonProjetoId", PROJETO.id);
+      localStorage.setItem("appProjetoId", PROJETO.id);
       renderSeletorProjeto();
       toast("Projeto criado.");
       $("proj-tab-anexos").style.opacity = "1";
@@ -3538,7 +3590,7 @@ function gerarRelatorioAtividades(formato){
 }
 
 // ================= CONFIGURAÇÕES (CRUD genérico: Recursos, Etapas, Frentes, Tipos) =================
-const TIPO_VINCULO_COLOR = {"Techne":"accent","Cliente":"ok","Terceirizado":"warn"};
+const TIPO_VINCULO_COLOR = {"Consultoria":"accent","Cliente":"ok","Terceirizado":"warn"};
 const CONFIG_ENTIDADES = {
   responsaveis: {
     tituloSingular: "Recurso", tituloPlural: "Recursos", endpoint: "recursos", comProjeto: false,
@@ -3554,8 +3606,8 @@ const CONFIG_ENTIDADES = {
     ],
     campos: [
       {chave:"nome", rotulo:"Nome", tipo:"text", obrigatorio:true},
-      {chave:"tipo_vinculo", rotulo:"Vínculo", tipo:"select", opcoes:["Techne","Cliente","Terceirizado"], padrao:"Techne", obrigatorio:true},
-      {chave:"empresa", rotulo:"Empresa", tipo:"text", placeholder:"Ex: Techne, TSE, Consultoria XYZ"},
+      {chave:"tipo_vinculo", rotulo:"Vínculo", tipo:"select", opcoes:["Consultoria","Cliente","Terceirizado"], padrao:"Consultoria", obrigatorio:true},
+      {chave:"empresa", rotulo:"Empresa", tipo:"text", placeholder:"Ex: Minha Consultoria, TSE, Empresa XYZ"},
       {chave:"cargo", rotulo:"Cargo", tipo:"text", placeholder:"Ex: Consultor de Folha, Analista de TI"},
       {chave:"email", rotulo:"E-mail", tipo:"email"},
       {chave:"telefone", rotulo:"Telefone", tipo:"text"},
@@ -3767,7 +3819,7 @@ function renderProjetoPane(){
 // mesmo quando a pessoa clicou em Cronograma ou Requisitos TR pra chegar nela.
 const CFG_ABA_TITULOS = {
   calendario: {titulo:"📅 Calendário de Feriados", sub:"Dias não úteis do projeto (feriados, recessos, pontos facultativos) — usados no cálculo do Caminho Crítico e na distribuição das horas previstas em Minhas Atividades."},
-  manuais: {titulo:"📚 Manuais do Sistema", sub:"Catálogo de manuais do Ergon (PDFs), único e compartilhado entre todos os projetos — usados na busca por referência da tela Analisar Requisitos."},
+  manuais: {titulo:"📚 Manuais do Sistema", sub:"Catálogo de manuais do sistema (PDFs), único e compartilhado entre todos os projetos — usados na busca por referência da tela Analisar Requisitos."},
   auditoria: {titulo:"🛡️ Log de Auditoria", sub:"Quem entrou, o que fez: acessos e alterações de dado do sistema, com o antes/depois de cada edição."},
 };
 const CFG_TITULO_PADRAO = "Configurações";
@@ -4145,7 +4197,7 @@ async function reloadConfigEntidades(){
 // ================= Parâmetros do site (Configurações > Parâmetros) =================
 // Logo + nome da empresa (globais, tabela parametros_site) e tema da página
 // (pessoal, salvo só no navegador — ver o <script> de restauração no <head>).
-const TEMA_STORAGE_KEY = "ergonTema";
+const TEMA_STORAGE_KEY = "appTema";
 
 function temaAtual(){
   try{ return localStorage.getItem(TEMA_STORAGE_KEY) || "auto"; }catch(e){ return "auto"; }
