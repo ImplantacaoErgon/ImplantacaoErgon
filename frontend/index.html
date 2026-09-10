@@ -147,7 +147,7 @@
 
   /* ---- filters ---- */
   .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
-  .filters input[type=text], .filters select, .filters input[type=date]{
+  .filters input[type=text], .filters select, .filters input[type=date], .filters input[type=month]{
     background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;
   }
   .filters input[type=text]{min-width:200px;flex:1 1 200px;}
@@ -484,6 +484,16 @@
     <div class="card">
       <h3>Horas por recurso (previsto × realizado)</h3>
       <div class="view-sub" style="margin-top:-6px;">Soma das horas previstas e realizadas nas atividades em que cada recurso aparece como participante. Usa a hora alocada especificamente daquela pessoa na atividade (aba Responsáveis, no modal de atividade) quando informada; sem alocação específica, conta a atividade inteira para ela. A diferença só considera atividades com horas realizadas já lançadas — passe o mouse sobre o valor para ver quantas.</div>
+      <div class="filters" style="margin:10px 0 0;">
+        <label class="muted" style="font-size:12px;">De:</label>
+        <input type="date" id="dash-horas-filtro-ini" title="Filtra pelas atividades cujo período previsto cruza com esta data em diante">
+        <label class="muted" style="font-size:12px;">Até (opcional):</label>
+        <input type="date" id="dash-horas-filtro-fim" title="Deixe em branco para não limitar o fim do período">
+        <span class="muted" style="font-size:12px;">ou</span>
+        <label class="muted" style="font-size:12px;">Mês:</label>
+        <input type="month" id="dash-horas-filtro-mes" title="Filtra pelas atividades cujo período previsto cruza com este mês">
+        <button class="btn secondary small" id="dash-horas-filtro-limpar">Limpar filtro</button>
+      </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Recurso</th><th>Vínculo</th><th>Atividades</th><th>Horas previstas</th><th>Horas realizadas</th><th>Diferença</th></tr></thead>
         <tbody id="dash-horas-resp"></tbody>
@@ -1772,7 +1782,7 @@ async function afterProjetoReady(){
   ]);
   aplicarMarcaNoTopo();
   fillStaticSelects();
-  wireNav(); wireDashboardRefresh(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
+  wireNav(); wireDashboardRefresh(); wireHorasRecursoFiltro(); wireRelatorioExecutivo(); wireRelatorioAtividades(); wireAtividadeModal(); wireRequisitoModal(); wireFilters(); wireImportCsv(); wireImportDocumentoTr(); wireImportCronograma(); wireRemoverCronograma();
   wireConfiguracoes(); wireParametros(); wireMinhasAtividades(); wireManuaisPane(); wireAnalisarRequisitos(); wireFaturaModal(); wireFaturaFiltros(); wireAuditoriaPane();
   setupCsvTemplateLink();
   await Promise.all([loadAtividades(), loadRequisitos(), loadRiscosMarcos(), loadFaturas()]);
@@ -2353,10 +2363,15 @@ function renderEsforcoEstourado(){
 // já usada pelo filtro rápido de período do Cronograma (periodRange("semana")), só
 // deslocada +7 dias corridos pra semana seguinte — sem endpoint novo, os dados já estão
 // todos em ATIVIDADES.
+// inicio/fim podem ser Date ou null (lado aberto — ex: "De 01/09 em diante", sem data
+// fim) — usado tanto pelos quadros de semana corrente/seguinte (sempre os dois definidos)
+// quanto pelo filtro de período de "Horas por recurso" (22ª rodada, onde o fim é opcional).
 function _atividadeSobrepoePeriodo(a, inicio, fim){
   if(!a.dtini_prev || !a.dtfim_prev) return false;
   const ini = new Date(a.dtini_prev+"T00:00:00"), fimA = new Date(a.dtfim_prev+"T00:00:00");
-  return ini<=fim && fimA>=inicio;
+  if(inicio && fimA < inicio) return false;
+  if(fim && ini > fim) return false;
+  return true;
 }
 function _formatarPeriodoSemana(inicio, fim){
   return `${inicio.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`;
@@ -2431,11 +2446,36 @@ function renderAlertasPrioridade(){
   });
 }
 
+// Filtro opcional de período do quadro "Horas por recurso" (22ª rodada): por data início/
+// fim (fim opcional — em aberto, "dessa data em diante") OU por mês; os dois campos são
+// mutuamente exclusivos (escolher um limpa o outro, ver wireHorasRecursoFiltro). Sem
+// nenhum filtro preenchido, [null, null] — _atividadeSobrepoePeriodo trata os dois lados
+// nulos como "sem limite", mas renderHorasPorRecurso pula o filtro inteiro nesse caso, pra
+// não pagar o custo de checar toda atividade sem nenhum filtro ativo.
+function _rangeFiltroHorasRecurso(){
+  const mes = $("dash-horas-filtro-mes")?.value; // "YYYY-MM" ou ""
+  if(mes){
+    const [y, m] = mes.split("-").map(Number);
+    return [new Date(y, m-1, 1), new Date(y, m, 0)]; // 1º e último dia do mês escolhido
+  }
+  const iniStr = $("dash-horas-filtro-ini")?.value, fimStr = $("dash-horas-filtro-fim")?.value;
+  return [iniStr ? new Date(iniStr+"T00:00:00") : null, fimStr ? new Date(fimStr+"T00:00:00") : null];
+}
+function wireHorasRecursoFiltro(){
+  const limparMes = () => { $("dash-horas-filtro-mes").value = ""; };
+  const limparDatas = () => { $("dash-horas-filtro-ini").value = ""; $("dash-horas-filtro-fim").value = ""; };
+  $("dash-horas-filtro-ini").addEventListener("change", () => { limparMes(); renderHorasPorRecurso(); });
+  $("dash-horas-filtro-fim").addEventListener("change", () => { limparMes(); renderHorasPorRecurso(); });
+  $("dash-horas-filtro-mes").addEventListener("change", () => { limparDatas(); renderHorasPorRecurso(); });
+  $("dash-horas-filtro-limpar").addEventListener("click", () => { limparDatas(); limparMes(); renderHorasPorRecurso(); });
+}
+
 // Soma horas previstas/realizadas por recurso, a partir das atividades já carregadas —
-// não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS. Uma
-// atividade com N participantes credita o previsto/realizado da atividade INTEIRO a CADA
-// um deles (não dividido) — é assim que o dono do dado pediu: "cada recurso realizou
-// essa atividade, cada um com 2h", independente de quantos participaram.
+// não precisa de endpoint próprio, os dados todos já estão em ATIVIDADES/RECURSOS. Desde a
+// 19ª/21ª rodadas usa a hora ALOCADA de cada participante quando informada (ver comentário
+// mais abaixo), caindo pra atividade inteira sem alocação específica. Desde a 22ª rodada,
+// só entram na soma as atividades que cruzam com o filtro de período escolhido acima
+// (quando nenhum filtro está preenchido, soma todas, como sempre foi).
 function renderHorasPorRecurso(){
   // Diferença só é calculada sobre o subconjunto de atividades que já têm horas_realizadas
   // lançadas — comparar realizado x previsto do total (incluindo o que nem começou) faria
@@ -2459,7 +2499,12 @@ function renderHorasPorRecurso(){
       acc.realizadas += Number(a.horas_realizadas || 0);
     }
   };
-  ATIVIDADES.forEach(a => (a.responsaveis||[]).forEach(p => acumula(p.id, a, p.horas_alocadas)));
+  const [filtroIni, filtroFim] = _rangeFiltroHorasRecurso();
+  const filtroAtivo = !!(filtroIni || filtroFim);
+  const atividadesConsideradas = filtroAtivo
+    ? ATIVIDADES.filter(a => _atividadeSobrepoePeriodo(a, filtroIni, filtroFim))
+    : ATIVIDADES;
+  atividadesConsideradas.forEach(a => (a.responsaveis||[]).forEach(p => acumula(p.id, a, p.horas_alocadas)));
 
   const linhas = [...porPessoa.entries()]
     .map(([recursoId, acc]) => ({recurso: byId(RECURSOS, recursoId), ...acc}))
@@ -2480,7 +2525,7 @@ function renderHorasPorRecurso(){
       <td class="mono">${temLancamento? l.realizadas.toFixed(1)+"h" : "—"}</td>
       <td class="mono" style="color:${corDif};" title="${tituloDif}">${difTxt}</td>
     </tr>`;
-  }).join("") : `<tr class="empty-row"><td colspan="6">Nenhuma atividade com recurso cadastrado ainda.</td></tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="6">${filtroAtivo ? "Nenhuma atividade prevista no período filtrado." : "Nenhuma atividade com recurso cadastrado ainda."}</td></tr>`;
 }
 
 // ================= CAMINHO CRÍTICO =================
