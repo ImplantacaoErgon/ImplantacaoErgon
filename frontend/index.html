@@ -966,6 +966,7 @@
         <div class="field"><label>Prioridade</label><select id="at-prioridade"><option>Urgente</option><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
         <div class="field full"><label>Nome</label><input id="at-nome" type="text" placeholder="Ex: Parametrização de Vagas Numeradas"></div>
         <div class="field full"><label>Descrição</label><textarea id="at-descricao"></textarea></div>
+        <div class="field full"><label>Objetivo</label><textarea id="at-objetivo" placeholder="O que essa atividade entrega..."></textarea></div>
 
         <div class="field"><label>Tipo de atividade elementar</label><select id="at-tipo"></select></div>
         <div class="field"><label>Item do TR (opcional)</label><select id="at-requisito-tr"></select></div>
@@ -1004,9 +1005,10 @@
         <ul class="list-simple" id="at-resp-list"></ul>
         <div class="inline-add">
           <select id="at-resp-add-select"></select>
+          <input id="at-resp-add-horas" type="number" step="0.5" min="0" style="width:90px;" placeholder="Horas" title="Horas alocadas pra essa pessoa nesta atividade. Deixe em branco para assumir as horas previstas da atividade inteira.">
           <button class="btn small" id="at-resp-add">Adicionar</button>
         </div>
-        <p class="muted" style="margin-top:10px;">Todas as pessoas (da consultoria, cliente ou terceirizadas) envolvidas na execução desta atividade — pode ter quantas forem necessárias (ex: uma reunião gerencial com várias pessoas de ambos os lados). Cada uma aponta e confirma as próprias horas em "Minhas atividades", de forma independente das demais; o previsto/realizado da atividade no Cronograma continua sendo um número único, que não muda conforme quantas pessoas participaram.</p>
+        <p class="muted" style="margin-top:10px;">Todas as pessoas (da consultoria, cliente ou terceirizadas) envolvidas na execução desta atividade — pode ter quantas forem necessárias (ex: uma reunião gerencial com várias pessoas de ambos os lados). Cada uma aponta e confirma as próprias horas em "Minhas atividades", com base na hora alocada a ela abaixo (em branco = assume as horas previstas da atividade inteira); o previsto/realizado da atividade no Cronograma continua sendo um número único, que não muda conforme quantas pessoas participaram.</p>
       </div>
     </div>
 
@@ -2553,7 +2555,9 @@ function wireAtividadeModal(){
   });
   $("at-resp-add").addEventListener("click", async ()=>{
     const recurso_id = $("at-resp-add-select").value; if(!recurso_id) return;
-    await api(`/atividades/${editingAtividadeId}/recursos`, {method:"POST", body: JSON.stringify({recurso_id})});
+    const horas_alocadas = $("at-resp-add-horas").value ? Number($("at-resp-add-horas").value) : null;
+    await api(`/atividades/${editingAtividadeId}/recursos`, {method:"POST", body: JSON.stringify({recurso_id, horas_alocadas})});
+    $("at-resp-add-horas").value = "";
     await refreshResponsaveis();
     await loadAtividades(); renderCronograma(); renderDashboard();
   });
@@ -2583,6 +2587,14 @@ function wireAtividadeModal(){
   ["at-prazo","at-dtini-prev","at-dtfim-prev"].forEach(id=>{
     $(id).addEventListener("change", autoCalcularDataPrevista);
   });
+  // Mantém o placeholder "Xh (atividade)" dos campos de hora alocada por
+  // participante em sincronia enquanto o usuário digita nas horas previstas,
+  // sem precisar recarregar a lista de responsáveis inteira.
+  $("at-prazo").addEventListener("input", ()=>{
+    const prazoAtividade = $("at-prazo").value ? Number($("at-prazo").value) : null;
+    const placeholderHoras = prazoAtividade!=null ? `${prazoAtividade}h (atividade)` : "atividade";
+    $("at-resp-list").querySelectorAll("input[data-resp-horas]").forEach(inp=>inp.placeholder=placeholderHoras);
+  });
   $("at-relato-add").addEventListener("click", async ()=>{
     const texto = $("at-relato-texto").value.trim();
     if(!texto){ toast("Informe o texto do relato.", true); return; }
@@ -2611,6 +2623,7 @@ function openAtividadeModal(atividade){
   $("at-codigo").value = atividade?.codigo_wbs || "";
   $("at-nome").value = atividade?.nome || "";
   $("at-descricao").value = atividade?.descricao || "";
+  $("at-objetivo").value = atividade?.objetivo || "";
   $("at-etapa").value = atividade?.etapa_id || ETAPAS[0]?.id || "";
   $("at-frente").value = atividade?.frente_trabalho_id || FRENTES[0]?.id || "";
   $("at-tipo").value = atividade?.tipo_atividade_elementar_id || "";
@@ -2649,6 +2662,7 @@ function closeAtividadeModal(){ $("overlay-atividade").hidden = true; editingAti
 async function saveAtividade(){
   const data = {
     codigo_wbs: $("at-codigo").value.trim(), nome: $("at-nome").value.trim(), descricao: $("at-descricao").value.trim(),
+    objetivo: $("at-objetivo").value.trim() || null,
     etapa_id: $("at-etapa").value, frente_trabalho_id: $("at-frente").value, tipo_atividade_elementar_id: $("at-tipo").value || null,
     requisito_tr_id: $("at-requisito-tr").value || null,
     status: $("at-status").value, prioridade: $("at-prioridade").value,
@@ -2675,13 +2689,23 @@ async function saveAtividade(){
 
 async function refreshResponsaveis(){
   const resp = await api(`/atividades/${editingAtividadeId}/recursos`);
+  const prazoAtividade = $("at-prazo").value ? Number($("at-prazo").value) : null;
+  const placeholderHoras = prazoAtividade!=null ? `${prazoAtividade}h (atividade)` : "atividade";
   $("at-resp-list").innerHTML = resp.length ? resp.map(r=>`
     <li><span>${esc(r.recurso_nome)} <span class="muted">(${esc(r.tipo_vinculo||"—")})</span></span>
+    <input type="number" step="0.5" min="0" class="resp-horas" data-resp-horas="${r.recurso_id}"
+           style="width:90px;margin:0 8px;" value="${r.horas_alocadas ?? ""}" placeholder="${esc(placeholderHoras)}"
+           title="Horas alocadas pra essa pessoa nesta atividade. Em branco = assume as horas previstas da atividade inteira.">
     <button class="btn ghost" data-resp="${r.recurso_id}">Remover</button></li>`).join("") : `<li class="muted">Nenhum recurso adicionado ainda.</li>`;
   $("at-resp-list").querySelectorAll("button[data-resp]").forEach(b=>b.addEventListener("click", async ()=>{
     await api(`/atividades/${editingAtividadeId}/recursos/${b.dataset.resp}`, {method:"DELETE"});
     await refreshResponsaveis();
     await loadAtividades(); renderCronograma(); renderDashboard();
+  }));
+  $("at-resp-list").querySelectorAll("input[data-resp-horas]").forEach(inp=>inp.addEventListener("change", async ()=>{
+    const horas_alocadas = inp.value ? Number(inp.value) : null;
+    await api(`/atividades/${editingAtividadeId}/recursos/${inp.dataset.respHoras}`, {method:"PATCH", body: JSON.stringify({horas_alocadas})});
+    toast("Horas alocadas atualizadas.");
   }));
   const jaAdicionados = new Set(resp.map(r=>r.recurso_id));
   const recursoLabel = r => `${esc(r.nome)} (${esc(r.tipo_vinculo||"—")}${r.cargo?" · "+esc(r.cargo):""})`;
